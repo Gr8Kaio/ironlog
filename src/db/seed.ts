@@ -364,13 +364,31 @@ const ROUTES: Record<RunType, string> = {
 
 const EFFORT: Record<RunType, number> = { easy: 3, tempo: 7, intervals: 8, long: 5, race: 9 };
 
-const roundTo = (value: number, step: number) => Math.round(value / step) * step;
+// Rounding to a 0.1 step reintroduces float noise (77.1 lands as
+// 77.10000000000001), so the result is trimmed back to 2 decimals.
+const roundTo = (value: number, step: number) =>
+  Math.round((Math.round(value / step) * step) * 100) / 100;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 // ---------------------------------------------------------------- entry points
 
-/** Populates an empty database. Never touches an existing one. */
-export async function seedIfEmpty(): Promise<boolean> {
+/**
+ * Populates an empty database. Never touches an existing one.
+ *
+ * The in-flight promise is not defensive padding: React StrictMode invokes
+ * mount effects twice, and two concurrent calls both read count === 0 before
+ * either writes, which seeds the demo history twice over.
+ */
+let seeding: Promise<boolean> | null = null;
+
+export function seedIfEmpty(): Promise<boolean> {
+  seeding ??= runSeedIfEmpty().finally(() => {
+    seeding = null;
+  });
+  return seeding;
+}
+
+async function runSeedIfEmpty(): Promise<boolean> {
   const count = await db.exercises.count();
   if (count > 0) return false;
   await seedAll({ withDemoHistory: true });
