@@ -28,49 +28,67 @@
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
 }
 
-html {
-  background: var(--color-ink);
-  /* Stops iOS from inflating text in a way that breaks the set rows. */
-  -webkit-text-size-adjust: 100%;
+/*
+ * These element rules must live in @layer base. Unlayered CSS beats anything
+ * in a cascade layer regardless of specificity, so an unlayered
+ * `button { font: inherit }` silently overrode every text-size utility on
+ * every button in the app.
+ */
+@layer base {
+  html {
+    background: var(--color-ink);
+    /* Stops iOS from inflating text in a way that breaks the set rows. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-ink);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    /* Rubber-band scrolling drags the whole app around otherwise. */
+    overscroll-behavior-y: none;
+  }
+
+  /* Tap highlights make every stepper press flash blue on iOS. */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+    touch-action: manipulation;
+  }
+
+  input,
+  select,
+  textarea {
+    font-family: inherit;
+    color: inherit;
+  }
+
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
 }
 
-body {
-  margin: 0;
-  background: var(--color-ink);
-  color: var(--color-fg);
-  font-family: var(--font-sans);
-  /* Rubber-band scrolling drags the whole app around otherwise. */
-  overscroll-behavior-y: none;
-}
-
-/* Tap highlights make every stepper press flash blue on iOS. */
-* {
-  -webkit-tap-highlight-color: transparent;
-}
-
-button {
-  font: inherit;
-  color: inherit;
-  touch-action: manipulation;
-}
-
+/*
+ * Deliberately unlayered, unlike the block above: below 16px iOS zooms the
+ * viewport on focus and never zooms back out. This guard has to beat a
+ * text-size utility applied to an input, so it must sit outside the layer.
+ */
 input,
 select,
 textarea {
-  font: inherit;
-  color: inherit;
-  /* Under 16px iOS zooms the viewport on focus and never zooms back. */
   font-size: max(16px, 1rem);
-}
-
-input[type='number'] {
-  -moz-appearance: textfield;
-}
-
-input[type='number']::-webkit-outer-spin-button,
-input[type='number']::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
 }
 
 @utility tabular {
