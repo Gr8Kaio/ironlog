@@ -24,20 +24,37 @@ export function setVolume(weightKg: number, reps: number): number {
   return weightKg * reps;
 }
 
+/**
+ * What the set actually moved. For a bodyweight exercise `weightKg` holds only
+ * what was *added* to you, so the load is your bodyweight plus that; every
+ * derived number (volume, e1RM, PRs) reads through here rather than off
+ * `weightKg`, otherwise a set of pull-ups would count as zero.
+ */
+export function setLoad(s: Pick<WorkoutSet, 'weightKg' | 'bodyWeightKg'>): number {
+  return s.weightKg + (s.bodyWeightKg ?? 0);
+}
+
+/** True for a set logged against a bodyweight exercise. */
+export function isBodyweightSet(s: Pick<WorkoutSet, 'bodyWeightKg'>): boolean {
+  return s.bodyWeightKg != null;
+}
+
 /** Working sets only — warmups must not inflate volume or weekly set counts. */
 export function isWorkingSet(s: WorkoutSet): boolean {
   return s.setType !== 'warmup';
 }
 
 export function workoutVolume(sets: WorkoutSet[]): number {
-  return sets.filter(isWorkingSet).reduce((t, s) => t + setVolume(s.weightKg, s.reps), 0);
+  return sets.filter(isWorkingSet).reduce((t, s) => t + setVolume(setLoad(s), s.reps), 0);
 }
 
 /** Heaviest set, ties broken by reps. */
 export function topSet(sets: WorkoutSet[]): WorkoutSet | null {
   let best: WorkoutSet | null = null;
   for (const s of sets.filter(isWorkingSet)) {
-    if (!best || s.weightKg > best.weightKg || (s.weightKg === best.weightKg && s.reps > best.reps)) {
+    const load = setLoad(s);
+    const bestLoad = best ? setLoad(best) : -Infinity;
+    if (!best || load > bestLoad || (load === bestLoad && s.reps > best.reps)) {
       best = s;
     }
   }
@@ -47,7 +64,7 @@ export function topSet(sets: WorkoutSet[]): WorkoutSet | null {
 export function bestE1RM(sets: WorkoutSet[]): number | null {
   let best: number | null = null;
   for (const s of sets.filter(isWorkingSet)) {
-    const e = epley1RM(s.weightKg, s.reps);
+    const e = epley1RM(setLoad(s), s.reps);
     if (e !== null && (best === null || e > best)) best = e;
   }
   return best;
@@ -98,6 +115,25 @@ export function formatClock(sec: number): string {
 /** Drops trailing zeroes so 100 reads as `100` and 102.5 as `102.5`. */
 export function fmtKg(kg: number): string {
   return String(Math.round(kg * 100) / 100);
+}
+
+/**
+ * How a set's load reads on screen. A bodyweight set with nothing added shows
+ * the word, not a zero; anything hung off a belt shows as an increment on it.
+ */
+export function loadLabel(s: Pick<WorkoutSet, 'weightKg' | 'bodyWeightKg'>): {
+  value: string;
+  unit: string | null;
+} {
+  if (!isBodyweightSet(s)) return { value: fmtKg(s.weightKg), unit: 'kg' };
+  if (s.weightKg === 0) return { value: 'Bodyweight', unit: null };
+  return { value: `BW +${fmtKg(s.weightKg)}`, unit: 'kg' };
+}
+
+/** The same thing in one string, for dense rows like the `Last` line. */
+export function loadLabelShort(s: Pick<WorkoutSet, 'weightKg' | 'bodyWeightKg'>): string {
+  if (!isBodyweightSet(s)) return fmtKg(s.weightKg);
+  return s.weightKg === 0 ? 'BW' : `BW+${fmtKg(s.weightKg)}`;
 }
 
 export function fmtKm(km: number): string {

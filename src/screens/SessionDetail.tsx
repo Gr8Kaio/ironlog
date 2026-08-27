@@ -5,7 +5,7 @@ import { db, newId } from '../db/db';
 import { getExerciseMap, getWorkoutEntry } from '../db/queries';
 import type { Workout, WorkoutSet } from '../db/types';
 import { recomputeExercisePrs, PR_SHORT } from '../lib/prs';
-import { epley1RM, fmtKg, fmtNumber } from '../lib/calc';
+import { epley1RM, fmtKg, fmtNumber, loadLabel, setLoad } from '../lib/calc';
 import { formatDate, formatTime, localDateOf } from '../lib/dates';
 import { SET_TYPE_LABEL } from '../lib/labels';
 import {
@@ -168,13 +168,14 @@ export function SessionDetail() {
 }
 
 function ReviewSetRow({ set }: { set: WorkoutSet }) {
-  const e1rm = epley1RM(set.weightKg, set.reps);
+  const e1rm = epley1RM(setLoad(set), set.reps);
+  const load = loadLabel(set);
   return (
     <div className="flex items-center gap-2 rounded-lg bg-raised/60 px-2.5 py-2">
       <span className="tabular w-5 shrink-0 text-center text-xs text-faint">{set.setNumber}</span>
       <span className="tabular min-w-0 flex-1 text-sm">
-        <span className="font-semibold">{fmtKg(set.weightKg)}</span>
-        <span className="text-xs text-muted"> kg × </span>
+        <span className="font-semibold">{load.value}</span>
+        <span className="text-xs text-muted">{load.unit ? ` ${load.unit} × ` : ' × '}</span>
         <span className="font-semibold">{set.reps}</span>
         {set.rpe ? <span className="text-xs text-muted"> @ {set.rpe}</span> : null}
         {set.setType !== 'working' ? (

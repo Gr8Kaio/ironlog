@@ -121,6 +121,12 @@ export interface WorkoutSet {
   reps: number;
   rpe?: number | null;
   setType: SetType;
+  /**
+   * Your bodyweight at the time, in kg, and only on sets of a bodyweight
+   * exercise. Present-but-zero still marks the set as bodyweight, which is
+   * what makes `weightKg: 0` read as `Bodyweight` instead of as no load.
+   */
+  bodyWeightKg?: number | null;
   note?: string;
   completedAt: number;
   /** Denormalised badge source; rebuilt wholesale after an import. */

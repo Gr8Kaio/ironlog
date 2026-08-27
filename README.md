@@ -3,10 +3,15 @@
 An offline-first gym and running tracker. Single user, no backend, no login.
 Everything is stored in IndexedDB on the device and never leaves it.
 
-- **Lifting** — session logging with per-set prefill from last time, a rest
-  timer, automatic PR detection, and a barbell plate-math helper.
+- **Lifting** — session logging that starts each set at the weight and reps you
+  last actually used, a rest timer, automatic PR detection, and a barbell
+  plate-math helper.
+- **Bodyweight work** — pull-ups and dips read as `Bodyweight` rather than
+  `0 kg`, and count for their real load using your latest weigh-in.
 - **Running** — first-class, with interval splits, pace trends split by run
   type, and weekly and monthly distance.
+- **Body** — weigh-ins with measurements, charted on their own Progress tab
+  with a smoothed trend line and a per-week rate of change.
 - **One timeline** — lifts and runs share a colour-coded history, so a week
   reads at a glance.
 - **Your data** — JSON backup and restore, CSV export of every set and every

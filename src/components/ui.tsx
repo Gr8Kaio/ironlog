@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
@@ -251,6 +251,39 @@ export function EmptyState({ title, body, action }: { title: string; body?: stri
 // ------------------------------------------------------------------- sheets
 
 /**
+ * How much of the layout viewport the on-screen keyboard is covering.
+ *
+ * `position: fixed` is laid out against the *layout* viewport, which iOS does
+ * not shrink when the keyboard opens — so a bottom-anchored sheet ends up
+ * underneath it and you cannot see what you are typing. The visual viewport is
+ * the only thing that knows, so the sheet is lifted by hand.
+ */
+function useKeyboardInset(active: boolean): { inset: number; visibleHeight: number } {
+  const [state, setState] = useState({ inset: 0, visibleHeight: 0 });
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!active || !vv) return;
+
+    const update = () => {
+      // offsetTop matters: iOS scrolls the visual viewport up as it opens.
+      const covered = window.innerHeight - vv.height - vv.offsetTop;
+      setState({ inset: Math.max(0, Math.round(covered)), visibleHeight: Math.round(vv.height) });
+    };
+    update();
+
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, [active]);
+
+  return state;
+}
+
+/**
  * Bottom sheet. Everything modal in the app uses this: a dialog anchored to
  * the top of a phone screen is unreachable one-handed.
  */
@@ -265,6 +298,8 @@ export function Sheet({
   title?: ReactNode;
   children: ReactNode;
 }) {
+  const { inset, visibleHeight } = useKeyboardInset(open);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -288,7 +323,16 @@ export function Sheet({
         onClick={onClose}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
       />
-      <div className="animate-slide-up relative max-h-[88vh] overflow-y-auto rounded-t-3xl border-t border-line bg-surface pb-safe">
+      <div
+        className="animate-slide-up relative max-h-[88vh] overflow-y-auto rounded-t-3xl border-t border-line bg-surface pb-safe"
+        // Sits on top of the keyboard rather than behind it, and gives up the
+        // height the keyboard took so the sheet still scrolls to its own end.
+        style={
+          inset > 0
+            ? { marginBottom: inset, maxHeight: Math.max(200, visibleHeight - 24) }
+            : undefined
+        }
+      >
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-line-soft bg-surface px-4 py-3">
           <div className="min-w-0 flex-1 font-semibold">{title}</div>
           <button

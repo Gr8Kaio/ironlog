@@ -1,6 +1,6 @@
 import { db, newId } from '../db/db';
 import type { PersonalRecord, PrType, WorkoutSet } from '../db/types';
-import { epley1RM, isWorkingSet, setVolume } from './calc';
+import { epley1RM, isWorkingSet, setLoad, setVolume } from './calc';
 
 /**
  * PRs are recomputed for a whole exercise rather than judged incrementally at
@@ -10,6 +10,9 @@ import { epley1RM, isWorkingSet, setVolume } from './calc';
  *
  * A record is a value *strictly greater* than everything logged before it, so
  * repeating your best does not re-award it.
+ *
+ * Bodyweight exercises are judged on their real load (your bodyweight plus
+ * anything added), not on the added weight alone.
  *
  *  - weight : heaviest single working set
  *  - e1rm   : best Epley estimate from a single set (capped at 12 reps)
@@ -32,12 +35,13 @@ export async function recomputeExercisePrs(exerciseId: string): Promise<void> {
   const holders: Partial<Record<PrType, WorkoutSet>> = {};
 
   for (const s of working) {
-    if (s.weightKg > bestWeight) {
-      bestWeight = s.weightKg;
+    const load = setLoad(s);
+    if (load > bestWeight) {
+      bestWeight = load;
       holders.weight = s;
       add(s.id, 'weight');
     }
-    const e = epley1RM(s.weightKg, s.reps);
+    const e = epley1RM(load, s.reps);
     if (e !== null && e > bestE1rm) {
       bestE1rm = e;
       holders.e1rm = s;
@@ -62,7 +66,7 @@ export async function recomputeExercisePrs(exerciseId: string): Promise<void> {
     let running = 0;
     let crossed: WorkoutSet | null = null;
     for (const s of sets) {
-      running += setVolume(s.weightKg, s.reps);
+      running += setVolume(setLoad(s), s.reps);
       if (crossed === null && running > bestVolume) crossed = s;
     }
     if (running > bestVolume) {

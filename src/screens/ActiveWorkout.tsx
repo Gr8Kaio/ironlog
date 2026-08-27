@@ -3,9 +3,17 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getSettings, newId } from '../db/db';
 import type { Exercise, RoutineExercise, SetType, WorkoutSet } from '../db/types';
-import { getLastPerformance } from '../db/queries';
+import { getLastPerformance, getLatestBodyWeightKg } from '../db/queries';
 import { recomputeExercisePrs, PR_SHORT } from '../lib/prs';
-import { epley1RM, fmtKg, formatClock, formatDuration } from '../lib/calc';
+import {
+  epley1RM,
+  fmtKg,
+  formatClock,
+  formatDuration,
+  loadLabel,
+  loadLabelShort,
+  setLoad,
+} from '../lib/calc';
 import { formatDateShort } from '../lib/dates';
 import { SET_TYPE_LABEL } from '../lib/labels';
 import { Stepper } from '../components/Stepper';
@@ -56,6 +64,9 @@ export function ActiveWorkout() {
   );
   const exercises = useLiveQuery(() => db.exercises.toArray(), [], undefined);
   const settings = useLiveQuery(() => getSettings(), [], undefined);
+  // Stamped onto every bodyweight set as it is logged, so a pull-up carries a
+  // real load and a later weigh-in cannot rewrite what old sets were worth.
+  const bodyWeightKg = useLiveQuery(() => getLatestBodyWeightKg(), [], undefined);
 
   const [openId, setOpenId] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
@@ -107,7 +118,15 @@ export function ActiveWorkout() {
     setOpenId(next);
   }, [openId, sets, prescriptions, lineup, prescriptionFor]);
 
-  if (workout === undefined || sets === undefined || exercises === undefined || !settings) {
+  // bodyWeightKg is in the guard because a set logged before it resolves would
+  // be stamped with a zero it can never get back.
+  if (
+    workout === undefined ||
+    sets === undefined ||
+    exercises === undefined ||
+    bodyWeightKg === undefined ||
+    !settings
+  ) {
     return (
       <Screen>
         <TopBar title="Session" />
@@ -138,6 +157,7 @@ export function ActiveWorkout() {
       reps: values.reps,
       rpe: values.rpe,
       setType: values.setType,
+      bodyWeightKg: exercise.equipment === 'bodyweight' ? (bodyWeightKg ?? 0) : null,
       note: values.note,
       completedAt: Date.now(),
       prTypes: [],
@@ -218,6 +238,7 @@ export function ActiveWorkout() {
               onLog={(values) => logSet(exercise, values)}
               onRemove={removeSet}
               workoutId={workoutId}
+              bodyWeightKg={bodyWeightKg ?? null}
               supersetLabel={
                 prescription?.supersetGroup
                   ? `Superset ${prescription.supersetGroup}`
@@ -311,6 +332,7 @@ function ExerciseBlock({
   onLog,
   onRemove,
   workoutId,
+  bodyWeightKg,
   supersetLabel,
   showSupersetHeader,
 }: {
@@ -328,6 +350,7 @@ function ExerciseBlock({
   }) => Promise<void>;
   onRemove: (set: WorkoutSet) => Promise<void>;
   workoutId: string;
+  bodyWeightKg: number | null;
   supersetLabel: string | null;
   showSupersetHeader: boolean;
 }) {
@@ -399,6 +422,8 @@ function ExerciseBlock({
             exercise={exercise}
             prescription={prescription}
             last={last ?? null}
+            sessionSets={sets}
+            bodyWeightKg={bodyWeightKg}
             nextSetNumber={done + 1}
             onLog={onLog}
           />
@@ -410,14 +435,15 @@ function ExerciseBlock({
 
 function SetRow({ set, onRemove }: { set: WorkoutSet; onRemove: () => void }) {
   const [confirming, setConfirming] = useState(false);
-  const e1rm = epley1RM(set.weightKg, set.reps);
+  const e1rm = epley1RM(setLoad(set), set.reps);
+  const load = loadLabel(set);
 
   return (
     <div className="flex items-center gap-2 rounded-lg bg-raised/60 px-2.5 py-2">
       <span className="tabular w-5 shrink-0 text-center text-xs text-faint">{set.setNumber}</span>
       <span className="tabular min-w-0 flex-1 text-sm">
-        <span className="font-semibold">{fmtKg(set.weightKg)}</span>
-        <span className="text-xs text-muted"> kg × </span>
+        <span className="font-semibold">{load.value}</span>
+        <span className="text-xs text-muted">{load.unit ? ` ${load.unit} × ` : ' × '}</span>
         <span className="font-semibold">{set.reps}</span>
         {set.rpe ? <span className="text-xs text-muted"> @ {set.rpe}</span> : null}
         {set.setType !== 'working' ? (
@@ -475,12 +501,16 @@ function SetEditor({
   exercise,
   prescription,
   last,
+  sessionSets,
+  bodyWeightKg,
   nextSetNumber,
   onLog,
 }: {
   exercise: Exercise;
   prescription: RoutineExercise | null;
   last: Awaited<ReturnType<typeof getLastPerformance>>;
+  sessionSets: WorkoutSet[];
+  bodyWeightKg: number | null;
   nextSetNumber: number;
   onLog: (values: {
     weightKg: number;
@@ -500,12 +530,13 @@ function SetEditor({
   const [saving, setSaving] = useState(false);
 
   /**
-   * Prefill matches set number to set number against last time, so the third
-   * set is suggested at what the third set actually was rather than at the
-   * top set. Falls back to the final set once you go past the old count.
+   * A set starts at the last weight and reps actually used for this exercise:
+   * the previous set of this session if there is one, otherwise the final set
+   * of the last session it was trained. Adjusting from what you just lifted
+   * beats matching set number against a session that may have gone differently.
    */
   const suggestion = useMemo(() => {
-    const previous = last?.sets?.[nextSetNumber - 1] ?? last?.sets?.at(-1) ?? null;
+    const previous = sessionSets.at(-1) ?? last?.sets?.at(-1) ?? null;
     if (previous) {
       return {
         weightKg: previous.weightKg,
@@ -518,7 +549,7 @@ function SetEditor({
       reps: prescription ? Math.round((prescription.repMin + prescription.repMax) / 2) : 8,
       rpe: prescription?.targetRpe ?? null,
     };
-  }, [last, nextSetNumber, prescription, exercise.equipment]);
+  }, [sessionSets, last, prescription, exercise.equipment]);
 
   // Re-prefill whenever the suggestion moves on (a set was logged or removed),
   // unless the value has been touched for this set already.
@@ -529,12 +560,13 @@ function SetEditor({
     setNote('');
   }, [nextSetNumber, exercise.id]);
 
+  const isBodyweight = exercise.equipment === 'bodyweight';
   const weightValue = weight ?? suggestion.weightKg;
   const repsValue = reps ?? suggestion.reps;
   const rpeValue = rpe ?? suggestion.rpe;
 
   const lastLine = last?.sets?.length
-    ? `${last.sets.map((s) => `${fmtKg(s.weightKg)}×${s.reps}`).join('  ')}${
+    ? `${last.sets.map((s) => `${loadLabelShort(s)}×${s.reps}`).join('  ')}${
         last.localDate ? `  ·  ${formatDateShort(last.localDate)}` : ''
       }`
     : 'No history for this exercise yet';
@@ -564,14 +596,22 @@ function SetEditor({
 
       <div className="flex gap-2">
         <Stepper
-          label="Weight"
+          label={isBodyweight ? 'Added' : 'Weight'}
           value={weightValue}
           onChange={setWeight}
           step={exercise.incrementKg}
           min={0}
           max={500}
-          format={fmtKg}
-          suffix="kg"
+          format={isBodyweight ? (v) => (v === 0 ? 'BW' : `+${fmtKg(v)}`) : fmtKg}
+          // The suffix carries the number the word stands for, so `BW` is never
+          // a mystery: it reads as the total actually being moved.
+          suffix={
+            isBodyweight
+              ? bodyWeightKg
+                ? `${fmtKg(bodyWeightKg + weightValue)} kg total`
+                : 'log a weigh-in'
+              : 'kg'
+          }
           size="lg"
         />
         <Stepper

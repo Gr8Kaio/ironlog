@@ -8,7 +8,7 @@ import type {
   Workout,
   WorkoutSet,
 } from './types';
-import { bestE1RM, epley1RM, isWorkingSet, setVolume, topSet, workoutVolume } from '../lib/calc';
+import { bestE1RM, epley1RM, isWorkingSet, setLoad, setVolume, topSet, workoutVolume } from '../lib/calc';
 import { monthKey, recentWeeks, weekStart } from '../lib/dates';
 
 // ------------------------------------------------------------ history feed
@@ -135,6 +135,33 @@ export async function getLastPerformance(
   };
 }
 
+/**
+ * The most recent weigh-in, in kg. This is what a bodyweight set is credited
+ * with, so pull-ups stop counting as zero load.
+ */
+export async function getLatestBodyWeightKg(): Promise<number | null> {
+  const metric = await db.bodyMetrics
+    .orderBy('measuredAt')
+    .reverse()
+    .filter((m) => m.weightKg != null)
+    .first();
+  return metric?.weightKg ?? null;
+}
+
+// ------------------------------------------------------------ body progress
+
+export interface BodyWeightPoint {
+  localDate: string;
+  weightKg: number;
+}
+
+export async function getBodyWeightTrend(): Promise<BodyWeightPoint[]> {
+  const metrics = await db.bodyMetrics.orderBy('measuredAt').toArray();
+  return metrics
+    .filter((m) => m.weightKg != null)
+    .map((m) => ({ localDate: m.localDate, weightKg: m.weightKg as number }));
+}
+
 // ------------------------------------------------------------ lift progress
 
 export interface ExercisePoint {
@@ -158,9 +185,9 @@ export async function getExerciseProgress(exerciseId: string): Promise<ExerciseP
     points.push({
       localDate: dateOf.get(workoutId) ?? '',
       e1rm: bestE1RM(group),
-      topWeightKg: top?.weightKg ?? 0,
+      topWeightKg: top ? setLoad(top) : 0,
       topReps: top?.reps ?? 0,
-      volumeKg: group.reduce((t, s) => t + setVolume(s.weightKg, s.reps), 0),
+      volumeKg: group.reduce((t, s) => t + setVolume(setLoad(s), s.reps), 0),
     });
   }
 
@@ -200,7 +227,7 @@ export async function getWeeklyLiftStats(weeks = 8): Promise<WeekLiftStats[]> {
     const muscle = muscleOf.get(s.exerciseId) ?? 'other';
     bucket.setsByMuscle[muscle] = (bucket.setsByMuscle[muscle] ?? 0) + 1;
     bucket.totalSets += 1;
-    bucket.volumeKg += setVolume(s.weightKg, s.reps);
+    bucket.volumeKg += setVolume(setLoad(s), s.reps);
   }
 
   return keys.map((k) => byWeek.get(k)!);
@@ -359,7 +386,7 @@ export async function getActiveWorkout(): Promise<Workout | null> {
 
 export function bestSetOf(sets: WorkoutSet[]): { set: WorkoutSet | null; e1rm: number | null } {
   const best = topSet(sets);
-  return { set: best, e1rm: best ? epley1RM(best.weightKg, best.reps) : null };
+  return { set: best, e1rm: best ? epley1RM(setLoad(best), best.reps) : null };
 }
 
 function groupBy<T, K>(items: T[], key: (item: T) => K): Map<K, T[]> {

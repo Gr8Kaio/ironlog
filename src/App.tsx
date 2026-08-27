@@ -2,6 +2,7 @@ import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-d
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { seedIfEmpty } from './db/seed';
+import { backfillBodyweightSets } from './db/backfill';
 import { getActiveWorkout } from './db/queries';
 import { ChartIcon, GearIcon, HistoryIcon, HomeIcon, PlanIcon } from './components/icons';
 import { cx } from './components/ui';
@@ -33,7 +34,8 @@ export default function App() {
     // First run on a fresh device: fill the library and the demo history so
     // there is something to look at before anything real is logged.
     seedIfEmpty()
-      .catch((err) => console.error('seed failed', err))
+      .then(() => backfillBodyweightSets())
+      .catch((err) => console.error('startup failed', err))
       .finally(() => setReady(true));
   }, []);
 

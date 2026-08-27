@@ -1,5 +1,9 @@
 import { solvePlates, formatPerSide } from '../src/lib/plates.ts';
-import { epley1RM, paceOf, formatDuration, fmtKg, fmtKm } from '../src/lib/calc.ts';
+import {
+  epley1RM, paceOf, formatDuration, fmtKg, fmtKm,
+  setLoad, loadLabel, loadLabelShort, topSet, bestE1RM, workoutVolume,
+} from '../src/lib/calc.ts';
+import type { WorkoutSet } from '../src/db/types.ts';
 import { weekStart, localDateOf, recentWeeks, daysBetween } from '../src/lib/dates.ts';
 
 let failures = 0;
@@ -41,6 +45,30 @@ eq('fmtKg half', fmtKg(102.5), '102.5');
 eq('fmtKm round', fmtKm(10), '10');
 eq('fmtKm 100', fmtKm(100), '100');
 eq('fmtKm decimal', fmtKm(5.25), '5.25');
+
+console.log('--- bodyweight load ---');
+const mkSet = (over: Partial<WorkoutSet>): WorkoutSet => ({
+  id: over.id ?? 's', workoutId: 'w', exerciseId: 'e', setNumber: 1,
+  weightKg: 0, reps: 8, setType: 'working', completedAt: 0, prTypes: [], ...over,
+});
+const bw = mkSet({ id: 'bw', weightKg: 0, reps: 8, bodyWeightKg: 78 });
+const bwPlus = mkSet({ id: 'bw+', weightKg: 10, reps: 5, bodyWeightKg: 78 });
+const barbell = mkSet({ id: 'bb', weightKg: 60, reps: 5 });
+const noWeighIn = mkSet({ id: 'bw0', weightKg: 0, reps: 8, bodyWeightKg: 0 });
+
+eq('pull-up carries bodyweight', setLoad(bw), 78);
+eq('weighted pull-up adds to it', setLoad(bwPlus), 88);
+eq('a loaded lift is unchanged', setLoad(barbell), 60);
+eq('an unweighed bodyweight set is still zero', setLoad(noWeighIn), 0);
+eq('bare bodyweight reads as a word', loadLabel(bw), { value: 'Bodyweight', unit: null });
+eq('added weight reads as an increment', loadLabel(bwPlus), { value: 'BW +10', unit: 'kg' });
+eq('a loaded lift reads as a number', loadLabel(barbell), { value: '60', unit: 'kg' });
+eq('no weigh-in still reads as bodyweight', loadLabel(noWeighIn), { value: 'Bodyweight', unit: null });
+eq('short label', loadLabelShort(bw), 'BW');
+eq('short label with load', loadLabelShort(bwPlus), 'BW+10');
+eq('volume counts the body', workoutVolume([bw]), 624);
+eq('e1RM counts the body', Math.round(bestE1RM([bw])! * 10) / 10, 98.8);
+eq('top set compares real load, not added', topSet([bw, barbell])!.id, 'bw');
 
 console.log('--- dates ---');
 eq('monday of a wednesday', weekStart('2026-08-26'), '2026-08-24');

@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
+  Area,
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   Line,
   LineChart,
   Tooltip,
@@ -13,6 +15,7 @@ import {
 } from 'recharts';
 import { db } from '../db/db';
 import {
+  getBodyWeightTrend,
   getExerciseMap,
   getPaceTrend,
   getRunTotals,
@@ -21,8 +24,16 @@ import {
 } from '../db/queries';
 import { RUN_TYPES } from '../db/types';
 import type { RunType } from '../db/types';
-import { fmtKm, fmtNumber, formatPace } from '../lib/calc';
-import { formatDateShort, formatMonth, relativeDays } from '../lib/dates';
+import { fmtKg, fmtKm, fmtNumber, formatPace } from '../lib/calc';
+import {
+  addDaysToLocalDate,
+  daysBetween,
+  formatDate,
+  formatDateShort,
+  formatMonth,
+  relativeDays,
+  todayLocalDate,
+} from '../lib/dates';
 import { MUSCLE_LABEL, RUN_TYPE_LABEL } from '../lib/labels';
 import {
   AXIS_PROPS,
@@ -33,22 +44,220 @@ import {
   TooltipBox,
 } from '../components/charts';
 import { ChevronRight } from '../components/icons';
-import { Card, EmptyState, Screen, SectionTitle, Segmented, Stat, TopBar } from '../components/ui';
+import {
+  Card,
+  EmptyState,
+  Screen,
+  SectionTitle,
+  Segmented,
+  Stat,
+  TopBar,
+  cx,
+} from '../components/ui';
 
 const TABS = [
   { value: 'lifts' as const, label: 'Lifts' },
   { value: 'running' as const, label: 'Running' },
+  { value: 'body' as const, label: 'Body' },
 ];
 
+type Tab = (typeof TABS)[number]['value'];
+
 export function Progress() {
-  const [tab, setTab] = useState<'lifts' | 'running'>('lifts');
+  const [tab, setTab] = useState<Tab>('lifts');
 
   return (
     <Screen>
       <TopBar title="Progress" />
       <Segmented options={TABS} value={tab} onChange={setTab} />
-      <div className="mt-4">{tab === 'lifts' ? <LiftProgress /> : <RunProgress />}</div>
+      <div className="mt-4">
+        {tab === 'lifts' ? <LiftProgress /> : tab === 'running' ? <RunProgress /> : <BodyProgress />}
+      </div>
     </Screen>
+  );
+}
+
+// --------------------------------------------------------------------- body
+
+const RANGES = [
+  { value: '90' as const, label: '3 months' },
+  { value: '180' as const, label: '6 months' },
+  { value: 'all' as const, label: 'All' },
+];
+
+/** Weigh-ins are irregular, so the trend line is over entries, not days. */
+const TREND_WINDOW = 5;
+
+function BodyProgress() {
+  const navigate = useNavigate();
+  const [range, setRange] = useState<'90' | '180' | 'all'>('90');
+  const trend = useLiveQuery(() => getBodyWeightTrend(), [], undefined);
+
+  const data = useMemo(() => {
+    const all = trend ?? [];
+    const cutoff = range === 'all' ? null : addDaysToLocalDate(todayLocalDate(), -Number(range));
+    const points = cutoff ? all.filter((p) => p.localDate >= cutoff) : all;
+    return points.map((p, i) => {
+      // Trailing mean: a single heavy-dinner morning should not look like a
+      // change in direction, but the raw dots still show what was measured.
+      const window = points.slice(Math.max(0, i - (TREND_WINDOW - 1)), i + 1);
+      return {
+        date: p.localDate,
+        weight: Math.round(p.weightKg * 10) / 10,
+        trend: Math.round((window.reduce((t, w) => t + w.weightKg, 0) / window.length) * 10) / 10,
+      };
+    });
+  }, [trend, range]);
+
+  const first = data[0] ?? null;
+  const last = data.at(-1) ?? null;
+  const change = first && last ? Math.round((last.weight - first.weight) * 10) / 10 : null;
+  const spanDays = first && last ? daysBetween(first.date, last.date) : 0;
+  // Per week rather than per day: a lifter's week is the unit a change is
+  // actually judged in, and a daily figure would be noise to three decimals.
+  const perWeek =
+    change !== null && spanDays >= 7 ? Math.round((change / (spanDays / 7)) * 100) / 100 : null;
+
+  if (trend && trend.length === 0) {
+    return (
+      <EmptyState
+        title="No weigh-ins yet"
+        body="Log your body weight and it will chart here — it also gives bodyweight sets like pull-ups a real load."
+        action={
+          <Card className="px-4 py-2 text-sm" onClick={() => navigate('/body')}>
+            Log a weigh-in
+          </Card>
+        }
+      />
+    );
+  }
+
+  return (
+    <>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="Latest" value={last ? fmtKg(last.weight) : '--'} unit="kg" tone="stride" />
+        <Stat
+          label="Change"
+          value={change === null ? '--' : `${change > 0 ? '+' : ''}${fmtKg(change)}`}
+          unit="kg"
+        />
+        <Stat
+          label="Per week"
+          value={perWeek === null ? '--' : `${perWeek > 0 ? '+' : ''}${fmtKg(perWeek)}`}
+          unit="kg"
+        />
+      </div>
+
+      <div className="mt-3">
+        <Segmented options={RANGES} value={range} onChange={setRange} />
+      </div>
+
+      <div className="mt-2">
+        <ChartFrame
+          title="Body weight"
+          hint={`${data.length} weigh-in${data.length === 1 ? '' : 's'} · line is a ${TREND_WINDOW}-entry average`}
+          empty={data.length < 2}
+        >
+          <ComposedChart data={data} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
+            <defs>
+              <linearGradient id="fadeBodyWeight" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={CHART.stride} stopOpacity={0.28} />
+                <stop offset="100%" stopColor={CHART.stride} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke={CHART.grid} vertical={false} />
+            <XAxis
+              dataKey="date"
+              {...AXIS_PROPS}
+              tickFormatter={(value: string) => formatDateShort(value)}
+              interval="preserveStartEnd"
+            />
+            <YAxis {...AXIS_PROPS} width={44} domain={['dataMin - 1', 'dataMax + 1']} />
+            <Tooltip
+              cursor={{ stroke: CHART.grid, strokeWidth: 1 }}
+              content={({ active, payload, label }) =>
+                active && payload?.length ? (
+                  <TooltipBox
+                    label={formatDate(String(label))}
+                    rows={[
+                      {
+                        key: 'weight',
+                        color: CHART.stride,
+                        name: 'Weighed',
+                        value: `${fmtKg(payload[0].payload.weight as number)} kg`,
+                      },
+                      {
+                        key: 'trend',
+                        color: CHART.gold,
+                        name: 'Trend',
+                        value: `${fmtKg(payload[0].payload.trend as number)} kg`,
+                      },
+                    ]}
+                  />
+                ) : null
+              }
+            />
+            <Area
+              type="monotone"
+              dataKey="weight"
+              stroke={CHART.stride}
+              strokeWidth={2}
+              fill="url(#fadeBodyWeight)"
+              dot={{ r: 2.5, strokeWidth: 0, fill: CHART.stride }}
+              activeDot={{ r: 5, stroke: CHART.surface, strokeWidth: 2 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="trend"
+              stroke={CHART.gold}
+              strokeWidth={2}
+              strokeDasharray="4 3"
+              dot={false}
+              activeDot={false}
+            />
+          </ComposedChart>
+        </ChartFrame>
+      </div>
+
+      <SectionTitle
+        action={
+          <button
+            type="button"
+            onClick={() => navigate('/body')}
+            className="flex items-center text-xs text-muted active:text-fg"
+          >
+            Log <ChevronRight className="size-4" />
+          </button>
+        }
+      >
+        Weigh-ins
+      </SectionTitle>
+      <Card className="divide-y divide-line-soft">
+        {[...data].reverse().slice(0, 12).map((point, i, rows) => {
+          const older = rows[i + 1];
+          const step = older ? Math.round((point.weight - older.weight) * 10) / 10 : null;
+          return (
+            <div key={point.date} className="flex items-center gap-3 px-3 py-2.5">
+              <span className="flex-1 text-sm">{formatDate(point.date)}</span>
+              {step !== null && step !== 0 ? (
+                <span
+                  className={cx(
+                    'tabular text-[11px]',
+                    step > 0 ? 'text-gold' : 'text-good',
+                  )}
+                >
+                  {step > 0 ? '+' : ''}
+                  {fmtKg(step)}
+                </span>
+              ) : null}
+              <span className="tabular w-20 text-right text-sm font-semibold">
+                {fmtKg(point.weight)} <span className="text-xs text-muted">kg</span>
+              </span>
+            </div>
+          );
+        })}
+      </Card>
+    </>
   );
 }
 

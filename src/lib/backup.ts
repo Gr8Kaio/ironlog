@@ -13,7 +13,7 @@ import type {
   WorkoutSet,
 } from '../db/types';
 import { recomputeAllPrs } from './prs';
-import { epley1RM, paceSecPerKm } from './calc';
+import { epley1RM, paceSecPerKm, setLoad } from './calc';
 import { todayLocalDate } from './dates';
 
 export const BACKUP_VERSION = 1;
@@ -221,10 +221,12 @@ export async function exportSetsCsv(): Promise<{ filename: string; text: string 
       set.setNumber,
       set.setType,
       set.weightKg,
+      set.bodyWeightKg ?? '',
+      setLoad(set),
       set.reps,
       set.rpe ?? '',
-      set.weightKg * set.reps,
-      epley1RM(set.weightKg, set.reps)?.toFixed(1) ?? '',
+      setLoad(set) * set.reps,
+      epley1RM(setLoad(set), set.reps)?.toFixed(1) ?? '',
       (set.prTypes ?? []).join(' '),
       set.note ?? '',
       new Date(set.completedAt).toISOString(),
@@ -245,6 +247,8 @@ export async function exportSetsCsv(): Promise<{ filename: string; text: string 
         'set_number',
         'set_type',
         'weight_kg',
+        'body_weight_kg',
+        'load_kg',
         'reps',
         'rpe',
         'volume_kg',
