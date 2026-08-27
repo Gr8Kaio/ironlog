@@ -60,6 +60,7 @@ export function ActiveWorkout() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [showSessionNote, setShowSessionNote] = useState(false);
   const [elapsed, setElapsed] = useState('0:00');
 
   useEffect(() => {
@@ -232,6 +233,18 @@ export function ActiveWorkout() {
         <PlusIcon className="size-5" /> Add exercise
       </Button>
 
+      <button
+        type="button"
+        onClick={() => setShowSessionNote(true)}
+        className={cx(
+          'mt-2 flex w-full min-h-12 items-center gap-2 rounded-xl border border-line px-3 text-left text-sm active:bg-raised',
+          workout.notes ? 'text-fg' : 'text-muted',
+        )}
+      >
+        <NoteIcon className="size-4 shrink-0 text-faint" />
+        <span className="truncate">{workout.notes || 'Add a note for this session'}</span>
+      </button>
+
       <div className="mt-6">
         {confirmDiscard ? (
           <ConfirmRow
@@ -264,6 +277,23 @@ export function ActiveWorkout() {
           setPicking(false);
         }}
       />
+
+      <Sheet
+        open={showSessionNote}
+        onClose={() => setShowSessionNote(false)}
+        title="Session note"
+      >
+        <TextArea
+          rows={4}
+          autoFocus
+          defaultValue={workout.notes ?? ''}
+          onChange={(e) => db.workouts.update(workoutId, { notes: e.target.value })}
+          placeholder="How the session went, what to change next time"
+        />
+        <Button variant="primary" className="mt-3 w-full" onClick={() => setShowSessionNote(false)}>
+          Done
+        </Button>
+      </Sheet>
 
       {timer.running ? <RestBar timer={timer} /> : null}
     </Screen>

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, newId } from '../db/db';
@@ -13,10 +14,21 @@ import { fmtKg, fmtKm, fmtNumber } from '../lib/calc';
 import { daysBetween, formatDate, localDateOf, relativeDays, todayLocalDate, weekStart } from '../lib/dates';
 import { HistoryRow } from '../components/HistoryRow';
 import { BarbellIcon, ChevronRight, PlanIcon, ScaleIcon, ShoeIcon } from '../components/icons';
-import { Button, Card, EmptyState, Screen, SectionTitle, Stat, TopBar } from '../components/ui';
+import {
+  Button,
+  Card,
+  Chip,
+  EmptyState,
+  Screen,
+  SectionTitle,
+  Sheet,
+  Stat,
+  TopBar,
+} from '../components/ui';
 
 export function Home() {
   const navigate = useNavigate();
+  const [pickingDay, setPickingDay] = useState(false);
 
   const next = useLiveQuery(() => getNextScheduledDay(), [], undefined);
   const active = useLiveQuery(() => getActiveWorkout(), [], undefined);
@@ -26,6 +38,19 @@ export function Home() {
   const lastWeight = useLiveQuery(
     () => db.bodyMetrics.orderBy('measuredAt').reverse().filter((m) => m.weightKg != null).first(),
     [],
+    undefined,
+  );
+
+  // Every day of the active routine, so a session other than the next one
+  // scheduled can be started without editing the plan.
+  const routineDays = useLiveQuery(
+    async () => {
+      if (!next) return [];
+      return (await db.routineDays.where('routineId').equals(next.routineId).toArray()).sort(
+        (a, b) => a.position - b.position,
+      );
+    },
+    [next?.routineId],
     undefined,
   );
 
@@ -84,7 +109,7 @@ export function Home() {
             >
               {active ? 'Resume session' : 'Start session'}
             </Button>
-            <Button variant="outline" onClick={() => navigate(`/plans/${next.routineId}`)}>
+            <Button variant="outline" onClick={() => setPickingDay(true)}>
               <PlanIcon className="size-5" />
             </Button>
           </div>
@@ -172,6 +197,32 @@ export function Home() {
       >
         Recent
       </SectionTitle>
+      <Sheet open={pickingDay} onClose={() => setPickingDay(false)} title="Start another day">
+        <div className="space-y-1.5">
+          {(routineDays ?? []).map((day) => (
+            <button
+              key={day.id}
+              type="button"
+              onClick={() => {
+                setPickingDay(false);
+                startWorkout(day.id);
+              }}
+              className="flex w-full min-h-14 items-center gap-3 rounded-xl bg-raised px-3 text-left active:bg-line"
+            >
+              <span className="min-w-0 flex-1 truncate font-medium">{day.name}</span>
+              {day.id === next?.dayId ? <Chip tone="iron">Next up</Chip> : null}
+            </button>
+          ))}
+        </div>
+        <Button
+          variant="outline"
+          className="mt-3 w-full text-sm"
+          onClick={() => navigate(`/plans/${next?.routineId}`)}
+        >
+          Edit this routine
+        </Button>
+      </Sheet>
+
       {recent && recent.length > 0 ? (
         <div className="space-y-2">
           {recent.map((entry) => (
