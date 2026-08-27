@@ -47,7 +47,7 @@ export function RunEditor() {
   );
   const settings = useLiveQuery(() => getSettings(), [], undefined);
 
-  const [localDate, setLocalDate] = useState(localDateOf(Date.now()));
+  const [localDate, setLocalDate] = useState(() => localDateOf(Date.now()));
   const [time, setTime] = useState('07:00');
   const [distanceKm, setDistanceKm] = useState(5);
   const [minutes, setMinutes] = useState(25);

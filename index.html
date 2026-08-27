@@ -2,9 +2,29 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ironlog</title>
+    <title>IronLog</title>
+
+    <!--
+      viewport-fit=cover lets the safe-area insets resolve to real values, which
+      is what keeps the tab bar clear of the home indicator. user-scalable=no is
+      deliberate: pinch-zoom mid-set turns a mistap into a zoomed viewport that
+      has to be undone one-handed.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="theme-color" content="#0a0b0d" />
+    <meta name="description" content="Offline-first gym and running tracker. All data stays on the device." />
+
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+
+    <!-- Standalone home-screen app on iOS, with a dark status bar. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="IronLog" />
+    <meta name="mobile-web-app-capable" content="yes" />
   </head>
   <body>
     <div id="root"></div>

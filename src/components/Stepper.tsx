@@ -34,8 +34,12 @@ export function Stepper({
   const [typing, setTyping] = useState(false);
   const [draft, setDraft] = useState('');
   const timer = useRef<number | null>(null);
+  // The repeat interval needs the current value without re-subscribing on
+  // every change. Synced in an effect rather than assigned during render.
   const latest = useRef(value);
-  latest.current = value;
+  useEffect(() => {
+    latest.current = value;
+  }, [value]);
 
   const clamp = useCallback((v: number) => Math.min(max, Math.max(min, v)), [min, max]);
 
