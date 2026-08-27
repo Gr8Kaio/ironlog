@@ -55,7 +55,8 @@ export function HistoryRow({ entry, showDay = true }: { entry: HistoryEntry; sho
 function LiftSummary({ entry }: { entry: Extract<HistoryEntry, { kind: 'workout' }> }) {
   return (
     <>
-      {entry.workingSets} sets · {entry.exerciseCount} exercises ·{' '}
+      {entry.workingSets} sets · {entry.exerciseCount}{' '}
+      {entry.exerciseCount === 1 ? 'exercise' : 'exercises'} ·{' '}
       {fmtNumber(Math.round(entry.volumeKg))} kg
       {entry.durationSec ? ` · ${Math.round(entry.durationSec / 60)} min` : ''}
     </>

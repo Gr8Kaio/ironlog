@@ -305,13 +305,32 @@ function RunProgress() {
           </BarChart>
         </ChartFrame>
 
-        <div className="rounded-2xl border border-line-soft bg-surface p-3">
-          <ChartFrame
-            title="Pace trend"
-            hint="Lower is faster · one line per run type"
-            empty={paceData.length < 2}
-          >
-            <LineChart data={paceData} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
+        <ChartFrame
+          title="Pace trend"
+          hint="Lower is faster · one line per run type"
+          empty={paceData.length < 2}
+          footer={
+            typesPresent.length > 0 ? (
+              <Legend
+                items={typesPresent.map((type) => ({
+                  key: type,
+                  label: RUN_TYPE_LABEL[type],
+                  color: RUN_TYPE_COLOR[type],
+                }))}
+                active={visible as Set<string>}
+                onToggle={(key) =>
+                  setVisible((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(key as RunType)) next.delete(key as RunType);
+                    else next.add(key as RunType);
+                    return next;
+                  })
+                }
+              />
+            ) : null
+          }
+        >
+          <LineChart data={paceData} margin={{ top: 4, right: 8, bottom: 0, left: -12 }}>
               <CartesianGrid stroke={CHART.grid} vertical={false} />
               <XAxis
                 dataKey="date"
@@ -355,28 +374,8 @@ function RunProgress() {
                     connectNulls
                   />
                 ))}
-            </LineChart>
-          </ChartFrame>
-
-          {typesPresent.length > 0 ? (
-            <Legend
-              items={typesPresent.map((type) => ({
-                key: type,
-                label: RUN_TYPE_LABEL[type],
-                color: RUN_TYPE_COLOR[type],
-              }))}
-              active={visible as Set<string>}
-              onToggle={(key) =>
-                setVisible((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(key as RunType)) next.delete(key as RunType);
-                  else next.add(key as RunType);
-                  return next;
-                })
-              }
-            />
-          ) : null}
-        </div>
+          </LineChart>
+        </ChartFrame>
       </div>
 
       <SectionTitle>Monthly totals</SectionTitle>

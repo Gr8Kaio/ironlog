@@ -352,6 +352,10 @@ export function SettingsScreen() {
         <p className="text-center text-[11px] text-faint">Export a backup first.</p>
       </Card>
 
+      <p className="mt-6 text-center text-[11px] text-faint">
+        IronLog v{__APP_VERSION__} · offline-first · all data on this device
+      </p>
+
       {/* Export sheet ---------------------------------------------------- */}
       <Sheet open={pending !== null} onClose={() => setPending(null)} title={pending?.label}>
         {pending ? (
