@@ -44,10 +44,14 @@ export type HistoryEntry = WorkoutEntry | RunEntry;
  * through here, so the merge exists in exactly one place.
  */
 export async function getHistory(limit = 100): Promise<HistoryEntry[]> {
-  const [workouts, runs] = await Promise.all([
+  const [allWorkouts, runs] = await Promise.all([
     db.workouts.orderBy('startedAt').reverse().limit(limit).toArray(),
     db.runs.orderBy('startedAt').reverse().limit(limit).toArray(),
   ]);
+
+  // An unfinished session belongs in the dock, not in history: reviewing it
+  // would offer to repeat a session that is still being logged.
+  const workouts = allWorkouts.filter((w) => w.status === 'completed');
 
   const [sets, intervals] = await Promise.all([
     db.sets.where('workoutId').anyOf(workouts.map((w) => w.id)).toArray(),

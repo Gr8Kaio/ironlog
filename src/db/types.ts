@@ -104,6 +104,12 @@ export interface Workout {
   status: WorkoutStatus;
   bodyWeightKg?: number | null;
   notes?: string;
+  /**
+   * Exercises chosen for this session beyond its routine day. Persisted rather
+   * than held in component state so an exercise added mid-session survives a
+   * reload before its first set, and so a session can be repeated exactly.
+   */
+  plannedExerciseIds?: string[];
 }
 
 export interface WorkoutSet {

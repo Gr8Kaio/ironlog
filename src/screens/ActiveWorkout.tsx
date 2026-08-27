@@ -59,7 +59,6 @@ export function ActiveWorkout() {
 
   const [openId, setOpenId] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
-  const [extraIds, setExtraIds] = useState<string[]>([]);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [elapsed, setElapsed] = useState('0:00');
 
@@ -84,10 +83,10 @@ export function ActiveWorkout() {
   const lineup = useMemo(() => {
     const ids: string[] = [];
     for (const p of prescriptions ?? []) ids.push(p.exerciseId);
-    for (const id of extraIds) if (!ids.includes(id)) ids.push(id);
+    for (const id of workout?.plannedExerciseIds ?? []) if (!ids.includes(id)) ids.push(id);
     for (const s of sets ?? []) if (!ids.includes(s.exerciseId)) ids.push(s.exerciseId);
     return ids;
-  }, [prescriptions, extraIds, sets]);
+  }, [prescriptions, workout?.plannedExerciseIds, sets]);
 
   const prescriptionFor = useCallback(
     (exerciseId: string) => (prescriptions ?? []).find((p) => p.exerciseId === exerciseId) ?? null,
@@ -256,8 +255,11 @@ export function ActiveWorkout() {
         open={picking}
         onClose={() => setPicking(false)}
         excludeIds={lineup}
-        onPick={(exercise) => {
-          setExtraIds((prev) => [...prev, exercise.id]);
+        onPick={async (exercise) => {
+          const planned = workout?.plannedExerciseIds ?? [];
+          await db.workouts.update(workoutId, {
+            plannedExerciseIds: [...planned, exercise.id],
+          });
           setOpenId(exercise.id);
           setPicking(false);
         }}
