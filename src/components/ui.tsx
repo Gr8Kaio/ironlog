@@ -8,7 +8,9 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 // ------------------------------------------------------------------ layout
 
 export function Screen({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx('px-4 pb-28', className)}>{children}</div>;
+  // pb-36 clears the bottom dock at its tallest: tabs plus the in-progress
+  // row plus the home indicator.
+  return <div className={cx('px-4 pb-36', className)}>{children}</div>;
 }
 
 export function TopBar({

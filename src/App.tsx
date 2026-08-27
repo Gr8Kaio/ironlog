@@ -47,7 +47,6 @@ export default function App() {
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg">
-      <ActiveWorkoutBanner />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/exercises" element={<ExerciseLibrary />} />
@@ -63,7 +62,7 @@ export default function App() {
         <Route path="/body" element={<BodyMetrics />} />
         <Route path="/settings" element={<SettingsScreen />} />
       </Routes>
-      <TabBar />
+      <BottomDock />
     </div>
   );
 }
@@ -71,20 +70,22 @@ export default function App() {
 /**
  * A session left open is the easiest way to lose a workout, so it follows you
  * across every screen until it is finished or discarded.
+ *
+ * It docks above the tab bar rather than at the top of the screen: pinned to
+ * the top it covered each screen's own header actions, and down here it is
+ * also within thumb reach.
  */
-function ActiveWorkoutBanner() {
+function ActiveWorkoutRow() {
   const navigate = useNavigate();
-  const location = useLocation();
   const active = useLiveQuery(() => getActiveWorkout(), [], null);
 
   if (!active) return null;
-  if (location.pathname === `/workout/${active.id}`) return null;
 
   return (
     <button
       type="button"
       onClick={() => navigate(`/workout/${active.id}`)}
-      className="fixed inset-x-0 top-0 z-40 mx-auto flex max-w-lg items-center gap-3 border-b border-iron/40 bg-iron/15 px-4 py-2 pt-safe backdrop-blur-lg"
+      className="flex w-full items-center gap-3 border-b border-iron/30 bg-iron/15 px-4 py-2.5 text-left active:bg-iron/25"
     >
       <span className="relative flex size-2.5">
         <span className="absolute inline-flex size-full animate-ping rounded-full bg-iron opacity-70" />
@@ -98,13 +99,14 @@ function ActiveWorkoutBanner() {
   );
 }
 
-function TabBar() {
+function BottomDock() {
   const location = useLocation();
-  // The logger owns the screen: its own controls sit where the tab bar would.
+  // The logger owns the screen: its own rest bar sits where the dock would.
   if (location.pathname.startsWith('/workout/')) return null;
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg border-t border-line-soft bg-ink/95 pb-safe backdrop-blur-lg">
+      <ActiveWorkoutRow />
       <div className="flex">
         {TABS.map(({ to, label, Icon }) => (
           <NavLink
