@@ -33,6 +33,7 @@ import {
   formatMonth,
   relativeDays,
   todayLocalDate,
+  weekStart,
 } from '../lib/dates';
 import { MUSCLE_LABEL, RUN_TYPE_LABEL } from '../lib/labels';
 import {
@@ -287,6 +288,13 @@ function LiftProgress() {
 
   const thisWeek = weeks?.at(-1);
 
+  // Three bare numbers with no timeframe read as all-time totals. Naming the
+  // days they cover is the difference between a stat and a guess.
+  const weekLabel = useMemo(() => {
+    const start = thisWeek?.week ?? weekStart(todayLocalDate());
+    return `${formatDateShort(start)} – ${formatDateShort(addDaysToLocalDate(start, 6))}`;
+  }, [thisWeek]);
+
   const muscleRows = useMemo(() => {
     if (!thisWeek) return [];
     return Object.entries(thisWeek.setsByMuscle)
@@ -314,6 +322,7 @@ function LiftProgress() {
 
   return (
     <>
+      <p className="mb-2 text-[11px] text-faint">This week · {weekLabel}</p>
       <div className="grid grid-cols-3 gap-2">
         <Stat label="Sessions" value={thisWeek?.sessions ?? 0} tone="iron" />
         <Stat label="Working sets" value={thisWeek?.totalSets ?? 0} tone="iron" />
@@ -363,7 +372,7 @@ function LiftProgress() {
 
         <Card className="p-3">
           <h3 className="text-sm font-medium">Sets by muscle group</h3>
-          <p className="mb-3 text-[11px] text-faint">This week · working sets only</p>
+          <p className="mb-3 text-[11px] text-faint">{weekLabel} · working sets only</p>
           {muscleRows.length === 0 ? (
             <p className="py-4 text-center text-xs text-faint">Nothing logged this week yet</p>
           ) : (

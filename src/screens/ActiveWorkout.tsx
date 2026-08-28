@@ -179,6 +179,26 @@ export function ActiveWorkout() {
     await recomputeExercisePrs(set.exerciseId);
   }
 
+  /**
+   * Only offered for exercises this session added on its own. A routine day's
+   * exercises stay put: dropping one here would read as a routine edit, and a
+   * session is not allowed to rewrite the routine behind it.
+   */
+  async function removeExercise(exerciseId: string) {
+    await db.transaction('rw', db.workouts, db.sets, async () => {
+      await db.sets
+        .where('workoutId')
+        .equals(workoutId)
+        .and((s) => s.exerciseId === exerciseId)
+        .delete();
+      await db.workouts.update(workoutId, {
+        plannedExerciseIds: (workout?.plannedExerciseIds ?? []).filter((id) => id !== exerciseId),
+      });
+    });
+    await recomputeExercisePrs(exerciseId);
+    if (openId === exerciseId) setOpenId(null);
+  }
+
   async function finish() {
     await db.workouts.update(workoutId, { status: 'completed', finishedAt: Date.now() });
     timer.stop();
@@ -237,6 +257,7 @@ export function ActiveWorkout() {
               onToggle={() => setOpenId(openId === exerciseId ? null : exerciseId)}
               onLog={(values) => logSet(exercise, values)}
               onRemove={removeSet}
+              onRemoveExercise={prescription ? null : () => removeExercise(exerciseId)}
               workoutId={workoutId}
               bodyWeightKg={bodyWeightKg ?? null}
               supersetLabel={
@@ -331,6 +352,7 @@ function ExerciseBlock({
   onToggle,
   onLog,
   onRemove,
+  onRemoveExercise,
   workoutId,
   bodyWeightKg,
   supersetLabel,
@@ -349,6 +371,8 @@ function ExerciseBlock({
     note?: string;
   }) => Promise<void>;
   onRemove: (set: WorkoutSet) => Promise<void>;
+  /** `null` when the exercise comes from the routine day and cannot be dropped. */
+  onRemoveExercise: (() => Promise<void>) | null;
   workoutId: string;
   bodyWeightKg: number | null;
   supersetLabel: string | null;
@@ -359,6 +383,8 @@ function ExerciseBlock({
     [exercise.id, workoutId],
     undefined,
   );
+
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   const done = sets.length;
   const target = prescription?.targetSets ?? 0;
@@ -384,30 +410,67 @@ function ExerciseBlock({
           open ? 'border-iron/40' : 'border-line-soft',
         )}
       >
-        <button
-          type="button"
-          onClick={onToggle}
-          className="flex w-full items-center gap-3 px-3 py-3 text-left active:bg-raised"
-        >
-          <span
-            className={cx(
-              'tabular flex size-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold',
-              complete ? 'bg-good/15 text-good' : 'bg-raised text-muted',
-            )}
+        <div className="flex items-stretch">
+          <button
+            type="button"
+            onClick={onToggle}
+            className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left active:bg-raised"
           >
-            {complete ? <CheckIcon className="size-4" /> : `${done}/${target || '-'}`}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium">{exercise.name}</span>
-            <span className="block truncate text-xs text-faint">
-              {prescription
-                ? `${prescription.targetSets} x ${prescription.repMin}-${prescription.repMax}${
-                    prescription.targetRpe ? ` @ RPE ${prescription.targetRpe}` : ''
-                  }`
-                : 'No target'}
+            <span
+              className={cx(
+                'tabular flex size-9 shrink-0 items-center justify-center rounded-lg text-xs font-semibold',
+                complete ? 'bg-good/15 text-good' : 'bg-raised text-muted',
+              )}
+            >
+              {complete ? <CheckIcon className="size-4" /> : `${done}/${target || '-'}`}
             </span>
-          </span>
-        </button>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{exercise.name}</span>
+              <span className="block truncate text-xs text-faint">
+                {prescription
+                  ? `${prescription.targetSets} x ${prescription.repMin}-${prescription.repMax}${
+                      prescription.targetRpe ? ` @ RPE ${prescription.targetRpe}` : ''
+                    }`
+                  : 'No target'}
+              </span>
+            </span>
+          </button>
+
+          {/*
+            The count on the confirm button is the whole point of the two taps:
+            an exercise picked by mistake goes away quietly, one with sets in it
+            has to say how much is about to be lost.
+          */}
+          {onRemoveExercise ? (
+            confirmingRemove ? (
+              <span className="flex shrink-0 items-center gap-1 self-center pr-2">
+                <button
+                  type="button"
+                  onClick={onRemoveExercise}
+                  className="rounded-md bg-danger/20 px-2 py-1 text-[11px] font-semibold text-danger"
+                >
+                  {done > 0 ? `Delete ${done} set${done === 1 ? '' : 's'}` : 'Remove'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmingRemove(false)}
+                  className="rounded-md px-2 py-1 text-[11px] text-muted"
+                >
+                  Keep
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                aria-label={`Remove ${exercise.name} from this session`}
+                onClick={() => setConfirmingRemove(true)}
+                className="flex w-11 shrink-0 items-center justify-center text-faint active:bg-raised"
+              >
+                <TrashIcon className="size-4" />
+              </button>
+            )
+          ) : null}
+        </div>
 
         {sets.length > 0 ? (
           <div className="space-y-1 px-3 pb-2">
@@ -565,11 +628,17 @@ function SetEditor({
   const repsValue = reps ?? suggestion.reps;
   const rpeValue = rpe ?? suggestion.rpe;
 
+  // RPE rides along with the load. What a weight cost you is the half of the
+  // record that decides whether to add to it, so it belongs on the same line.
   const lastLine = last?.sets?.length
-    ? `${last.sets.map((s) => `${loadLabelShort(s)}×${s.reps}`).join('  ')}${
-        last.localDate ? `  ·  ${formatDateShort(last.localDate)}` : ''
-      }`
+    ? `${last.sets
+        .map((s) => `${loadLabelShort(s)}×${s.reps}${s.rpe ? ` @${s.rpe}` : ''}`)
+        .join('  ')}${last.localDate ? `  ·  ${formatDateShort(last.localDate)}` : ''}`
     : 'No history for this exercise yet';
+
+  // A set note is written for the next session, so this is where it has to
+  // resurface — not buried in a history entry nobody reopens mid-set.
+  const lastNotes = (last?.sets ?? []).filter((s) => s.note);
 
   async function submit() {
     setSaving(true);
@@ -589,9 +658,31 @@ function SetEditor({
 
   return (
     <div className="border-t border-line-soft bg-raised/30 px-3 pt-3 pb-3">
-      <div className="tabular mb-3 flex items-center gap-2 text-[11px] text-faint">
-        <span className="shrink-0 font-semibold tracking-wide text-muted uppercase">Last</span>
-        <span className="truncate">{lastLine}</span>
+      <div className="mb-3 space-y-1.5">
+        {exercise.notes ? (
+          <p className="flex gap-1.5 rounded-lg rounded-l-sm border-l-2 border-iron/50 bg-raised px-2 py-1.5 text-[11px] text-muted">
+            <NoteIcon className="mt-px size-3.5 shrink-0 text-faint" />
+            <span>{exercise.notes}</span>
+          </p>
+        ) : null}
+
+        <div className="tabular flex items-center gap-2 text-[11px] text-faint">
+          <span className="shrink-0 font-semibold tracking-wide text-muted uppercase">Last</span>
+          <span className="truncate">{lastLine}</span>
+        </div>
+
+        {lastNotes.map((s) => (
+          <p
+            key={s.id}
+            className="flex gap-1.5 rounded-lg bg-raised px-2 py-1.5 text-[11px] text-muted"
+          >
+            <NoteIcon className="mt-px size-3.5 shrink-0 text-faint" />
+            <span>
+              <span className="text-faint">Set {s.setNumber} · </span>
+              {s.note}
+            </span>
+          </p>
+        ))}
       </div>
 
       <div className="flex gap-2">
