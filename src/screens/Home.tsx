@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, newId } from '../db/db';
@@ -6,14 +6,31 @@ import {
   getActiveWorkout,
   getHistory,
   getNextScheduledDay,
+  getPersonalRecords,
   getWeeklyLiftStats,
   getWeeklyRunStats,
 } from '../db/queries';
-import type { Workout } from '../db/types';
-import { fmtKg, fmtKm, fmtNumber } from '../lib/calc';
-import { daysBetween, formatDate, localDateOf, relativeDays, todayLocalDate, weekStart } from '../lib/dates';
+import type { PersonalRecordRow } from '../db/queries';
+import type { PrType, Workout } from '../db/types';
+import { fmtKg, fmtKm, fmtNumber, loadLabelShort } from '../lib/calc';
+import {
+  daysBetween,
+  formatDate,
+  formatDateShort,
+  localDateOf,
+  relativeDays,
+  todayLocalDate,
+  weekStart,
+} from '../lib/dates';
 import { HistoryRow } from '../components/HistoryRow';
-import { BarbellIcon, ChevronRight, PlanIcon, ScaleIcon, ShoeIcon } from '../components/icons';
+import {
+  BarbellIcon,
+  ChevronRight,
+  PlanIcon,
+  ScaleIcon,
+  ShoeIcon,
+  TrophyIcon,
+} from '../components/icons';
 import {
   Button,
   Card,
@@ -21,6 +38,7 @@ import {
   EmptyState,
   Screen,
   SectionTitle,
+  Segmented,
   Sheet,
   Stat,
   TopBar,
@@ -183,6 +201,9 @@ export function Home() {
         </button>
       ) : null}
 
+      {/* Records ------------------------------------------------------- */}
+      <RecordBoard />
+
       {/* Recent -------------------------------------------------------- */}
       <SectionTitle
         action={
@@ -233,6 +254,141 @@ export function Home() {
         <EmptyState title="Nothing logged yet" body="Start a session or log a run to fill this in." />
       )}
     </Screen>
+  );
+}
+
+// ------------------------------------------------------------- record board
+
+const PR_TABS = [
+  { value: 'weight' as const, label: 'Heaviest' },
+  { value: 'e1rm' as const, label: 'Est. 1RM' },
+  { value: 'volume' as const, label: 'Volume' },
+];
+
+const PR_HINT: Record<PrType, string> = {
+  weight: 'Heaviest working set ever logged',
+  e1rm: 'Best single-set Epley estimate',
+  volume: 'Most working volume in one session',
+};
+
+/** Enough to see the board is there without pushing Recent off the screen. */
+const COLLAPSED_RECORDS = 5;
+
+function RecordBoard() {
+  const navigate = useNavigate();
+  const records = useLiveQuery(() => getPersonalRecords(), [], undefined);
+  const [type, setType] = useState<PrType>('weight');
+  const [expanded, setExpanded] = useState(false);
+
+  const rows = useMemo(
+    () => (records ?? []).filter((r) => r.prType === type),
+    [records, type],
+  );
+
+  const total = records?.length ?? 0;
+
+  return (
+    <>
+      <SectionTitle
+        action={
+          total > 0 ? (
+            <span className="text-[11px] text-faint">
+              {total} record{total === 1 ? '' : 's'}
+            </span>
+          ) : undefined
+        }
+      >
+        Personal records
+      </SectionTitle>
+
+      {records && total === 0 ? (
+        <EmptyState
+          title="No records yet"
+          body="Log a working set and the heaviest, the best estimated 1RM and the biggest session show up here."
+        />
+      ) : (
+        <>
+          <Segmented
+            options={PR_TABS}
+            value={type}
+            onChange={(next) => {
+              setType(next);
+              setExpanded(false);
+            }}
+          />
+          <p className="mt-2 mb-1.5 text-[11px] text-faint">{PR_HINT[type]}</p>
+
+          <div className="space-y-1.5">
+            {(expanded ? rows : rows.slice(0, COLLAPSED_RECORDS)).map((row) => (
+              <RecordRow
+                key={row.id}
+                row={row}
+                onOpen={() => navigate(`/exercises/${row.exercise.id}`)}
+              />
+            ))}
+          </div>
+
+          {rows.length > COLLAPSED_RECORDS ? (
+            <button
+              type="button"
+              onClick={() => setExpanded(!expanded)}
+              className="mt-1.5 w-full py-2.5 text-center text-[11px] font-medium text-muted active:text-fg"
+            >
+              {expanded ? 'Show fewer' : `Show all ${rows.length}`}
+            </button>
+          ) : null}
+        </>
+      )}
+    </>
+  );
+}
+
+function RecordRow({ row, onOpen }: { row: PersonalRecordRow; onOpen: () => void }) {
+  const { set } = row;
+
+  // A volume record belongs to a whole session, so there is no single load or
+  // RPE to quote for it — it gets the session's name instead.
+  const detail =
+    row.prType === 'volume'
+      ? row.workoutName || 'One session'
+      : set
+        ? `${loadLabelShort(set)} × ${set.reps}${set.rpe ? ` @ RPE ${set.rpe}` : ''}`
+        : 'Set no longer logged';
+
+  const headline =
+    row.prType === 'volume'
+      ? fmtNumber(Math.round(row.value))
+      : row.prType === 'e1rm'
+        ? `~${fmtNumber(row.value, 1)}`
+        : fmtKg(row.value);
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 rounded-xl bg-surface px-3 py-2.5 text-left active:bg-raised"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gold/15 text-gold">
+        <TrophyIcon className="size-4" />
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{row.exercise.name}</span>
+        <span className="tabular block truncate text-[11px] text-faint">
+          {detail} · {relativeDays(row.localDate)}
+        </span>
+      </span>
+
+      <span className="shrink-0 text-right">
+        <span className="tabular block text-sm font-semibold text-gold">
+          {headline}
+          <span className="ml-0.5 text-[10px] font-medium text-muted">kg</span>
+        </span>
+        <span className="tabular block text-[10px] text-faint">
+          {formatDateShort(row.localDate)}
+        </span>
+      </span>
+    </button>
   );
 }
 

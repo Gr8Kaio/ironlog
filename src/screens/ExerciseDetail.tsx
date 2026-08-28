@@ -7,7 +7,7 @@ import { getExerciseProgress } from '../db/queries';
 import type { PrType } from '../db/types';
 import { PR_LABEL } from '../lib/prs';
 import { E1RM_REP_CAP, fmtKg, fmtNumber } from '../lib/calc';
-import { formatDate, formatDateShort } from '../lib/dates';
+import { formatDate, formatDateShort, localDateOf } from '../lib/dates';
 import { EQUIPMENT_LABEL, MUSCLE_LABEL } from '../lib/labels';
 import { AXIS_PROPS, CHART, ChartFrame, TooltipBox } from '../components/charts';
 import { ChevronLeft, TrophyIcon } from '../components/icons';
@@ -92,9 +92,8 @@ export function ExerciseDetail() {
       {records && records.length > 0 ? (
         <p className="mt-2 flex items-center gap-1.5 text-[11px] text-faint">
           <TrophyIcon className="size-3.5 text-gold" />
-          Best e1RM on {formatDate(byType.get('e1rm')?.achievedAt
-            ? new Date(byType.get('e1rm')!.achievedAt).toISOString().slice(0, 10)
-            : '')}
+          Best e1RM on{' '}
+          {byType.has('e1rm') ? formatDate(localDateOf(byType.get('e1rm')!.achievedAt)) : '--'}
         </p>
       ) : null}
 

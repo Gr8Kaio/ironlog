@@ -2,6 +2,7 @@ import { db } from './db';
 import type {
   Exercise,
   MuscleGroup,
+  PrType,
   Run,
   RunInterval,
   RunType,
@@ -9,7 +10,7 @@ import type {
   WorkoutSet,
 } from './types';
 import { bestE1RM, epley1RM, isWorkingSet, setLoad, setVolume, topSet, workoutVolume } from '../lib/calc';
-import { monthKey, recentWeeks, weekStart } from '../lib/dates';
+import { localDateOf, monthKey, recentWeeks, weekStart } from '../lib/dates';
 
 // ------------------------------------------------------------ history feed
 
@@ -373,6 +374,69 @@ export async function getNextScheduledDay(): Promise<NextDayHint | null> {
 }
 
 // ------------------------------------------------------------ misc helpers
+
+// ---------------------------------------------------------------- records
+
+export interface PersonalRecordRow {
+  id: string;
+  prType: PrType;
+  /** kg for weight and e1rm, kg of session volume for volume. */
+  value: number;
+  achievedAt: number;
+  localDate: string;
+  exercise: Exercise;
+  /** The set that holds the record. Absent only if that set was since deleted. */
+  set: WorkoutSet | null;
+  workoutId: string;
+  workoutName: string;
+}
+
+/**
+ * The whole record board in one read.
+ *
+ * `personalRecords` holds only what currently stands — one row per exercise
+ * per type, rewritten wholesale by `recomputeExercisePrs` — so this is every
+ * record you presently hold, not a log of every record ever set. Each row is
+ * paired back with the set that holds it, because the number alone does not
+ * say what it cost: the reps and the RPE are the record.
+ */
+export async function getPersonalRecords(): Promise<PersonalRecordRow[]> {
+  const records = await db.personalRecords.toArray();
+  if (records.length === 0) return [];
+
+  const [exercises, sets, workouts] = await Promise.all([
+    getExerciseMap(),
+    db.sets.bulkGet(records.map((r) => r.setId)),
+    db.workouts.bulkGet([...new Set(records.map((r) => r.workoutId))]),
+  ]);
+  const workoutById = new Map(
+    workouts.filter((w): w is Workout => !!w).map((w) => [w.id, w]),
+  );
+
+  const rows: PersonalRecordRow[] = [];
+  records.forEach((record, i) => {
+    const exercise = exercises.get(record.exerciseId);
+    if (!exercise) return;
+    const workout = workoutById.get(record.workoutId) ?? null;
+    rows.push({
+      id: record.id,
+      prType: record.prType,
+      value: record.value,
+      achievedAt: record.achievedAt,
+      // The session's own calendar day, never a UTC slice of the epoch: a
+      // 23:40 lift has to stay on the day you actually lifted it.
+      localDate: workout?.localDate ?? localDateOf(record.achievedAt),
+      exercise,
+      set: sets[i] ?? null,
+      workoutId: record.workoutId,
+      workoutName: workout?.name ?? '',
+    });
+  });
+
+  // Heaviest first. Comparing across types is meaningless, so every caller
+  // filters to one type before showing the list.
+  return rows.sort((a, b) => b.value - a.value);
+}
 
 export async function getExerciseMap(): Promise<Map<string, Exercise>> {
   const exercises = await db.exercises.toArray();
