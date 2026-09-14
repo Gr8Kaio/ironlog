@@ -22,6 +22,7 @@ import { SettingsScreen } from './screens/Settings';
 import { FoodLibrary } from './screens/FoodLibrary';
 import { FuelToday } from './screens/FuelToday';
 import { FuelWeek } from './screens/FuelWeek';
+import { ViewportDebug } from './screens/ViewportDebug';
 
 const TABS = [
   { to: '/', label: 'Home', Icon: HomeIcon },
@@ -76,6 +77,7 @@ export default function App() {
           <Route path="/fuel/week" element={<FuelWeek />} />
           <Route path="/fuel/day/:localDate" element={<FuelToday />} />
           <Route path="/settings" element={<SettingsScreen />} />
+          <Route path="/debug/viewport" element={<ViewportDebug />} />
         </Routes>
       </div>
       <BottomDock />
