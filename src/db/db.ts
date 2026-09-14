@@ -2,6 +2,8 @@ import Dexie, { type EntityTable } from 'dexie';
 import type {
   BodyMetric,
   Exercise,
+  Food,
+  FoodLog,
   PersonalRecord,
   Routine,
   RoutineDay,
@@ -9,6 +11,7 @@ import type {
   Run,
   RunInterval,
   Settings,
+  WaterLog,
   Workout,
   WorkoutSet,
 } from './types';
@@ -29,6 +32,9 @@ export class IronLogDB extends Dexie {
   runs!: EntityTable<Run, 'id'>;
   runIntervals!: EntityTable<RunInterval, 'id'>;
   bodyMetrics!: EntityTable<BodyMetric, 'id'>;
+  foods!: EntityTable<Food, 'id'>;
+  foodLogs!: EntityTable<FoodLog, 'id'>;
+  waterLogs!: EntityTable<WaterLog, 'id'>;
   settings!: EntityTable<Settings, 'id'>;
 
   constructor() {
@@ -45,6 +51,19 @@ export class IronLogDB extends Dexie {
       runIntervals: 'id, runId, [runId+repNumber]',
       bodyMetrics: 'id, measuredAt, localDate',
       settings: 'id',
+    });
+
+    // v2 adds the fuel log. Declaring only the new stores leaves every v1
+    // table, and its data, exactly as it was.
+    this.version(2).stores({
+      foods: 'id, name, lastUsedAt, useCount',
+      foodLogs: 'id, localDate, loggedAt, foodId, [localDate+meal]',
+    });
+
+    // v3 adds the water log. Same rule as v2: only the new store is declared,
+    // so every existing table and its rows are untouched.
+    this.version(3).stores({
+      waterLogs: 'id, localDate, loggedAt',
     });
   }
 }
@@ -70,6 +89,14 @@ export const DEFAULT_SETTINGS: Settings = {
   lastBackupAt: null,
   backupNagDays: 14,
   soundOnRestEnd: true,
+  kcalTarget: null,
+  proteinTargetG: null,
+  carbsTargetG: null,
+  fatTargetG: null,
+  weeklyBudgetEnabled: true,
+  // Argentine-shaped by default: a real merienda, a late and substantial cena.
+  mealSplit: { breakfast: 0.2, lunch: 0.35, snack: 0.15, dinner: 0.3 },
+  waterTargetMl: 2500,
 };
 
 export async function getSettings(): Promise<Settings> {

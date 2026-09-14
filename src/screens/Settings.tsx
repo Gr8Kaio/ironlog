@@ -21,6 +21,7 @@ import { SURFACE_LABEL } from '../lib/labels';
 import { requestNotificationPermission } from '../hooks/useRestTimer';
 import { PlateMath } from '../components/PlateMath';
 import { Stepper } from '../components/Stepper';
+import { FuelTargets } from '../components/FuelTargets';
 import {
   Button,
   Card,
@@ -195,6 +196,9 @@ export function SettingsScreen() {
 
         {status ? <p className="mt-3 text-xs text-good">{status}</p> : null}
       </Card>
+
+      {/* Fuel targets ---------------------------------------------------- */}
+      <FuelTargets />
 
       {/* Bar and plates ------------------------------------------------- */}
       <SectionTitle>Barbell</SectionTitle>

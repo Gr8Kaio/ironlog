@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, newId } from '../db/db';
+import { db, getSettings, newId } from '../db/db';
 import {
   getActiveWorkout,
   getHistory,
+  getLogsForDate,
+  getLogsForWeekOf,
   getNextScheduledDay,
   getPersonalRecords,
   getWeeklyLiftStats,
@@ -22,10 +24,18 @@ import {
   todayLocalDate,
   weekStart,
 } from '../lib/dates';
+import {
+  buildWeekBudget,
+  dayAllowanceKcal,
+  fmtKcal,
+  fmtGrams,
+  totalMacros,
+} from '../lib/nutrition';
 import { HistoryRow } from '../components/HistoryRow';
 import {
   BarbellIcon,
   ChevronRight,
+  FlameIcon,
   PlanIcon,
   ScaleIcon,
   ShoeIcon,
@@ -42,6 +52,7 @@ import {
   Sheet,
   Stat,
   TopBar,
+  cx,
 } from '../components/ui';
 
 export function Home() {
@@ -162,6 +173,9 @@ export function Home() {
         />
       </div>
 
+      {/* Fuel ----------------------------------------------------------- */}
+      <FuelCard />
+
       {/* This week ----------------------------------------------------- */}
       <SectionTitle
         action={
@@ -254,6 +268,66 @@ export function Home() {
         <EmptyState title="Nothing logged yet" body="Start a session or log a run to fill this in." />
       )}
     </Screen>
+  );
+}
+
+// ---------------------------------------------------------------- fuel card
+
+/**
+ * Today's remaining energy, on the screen you already open. Hidden entirely
+ * until a target exists: an empty ring is worse than no ring.
+ */
+function FuelCard() {
+  const navigate = useNavigate();
+  const today = todayLocalDate();
+  const settings = useLiveQuery(() => getSettings(), [], undefined);
+  const logs = useLiveQuery(() => getLogsForDate(today), [today], undefined);
+  const weekLogs = useLiveQuery(() => getLogsForWeekOf(today), [today], undefined);
+
+  if (!settings || !logs || !weekLogs) return null;
+  const target = settings.kcalTarget ?? 0;
+  if (target <= 0) return null;
+
+  const budget = buildWeekBudget(weekLogs, target, today);
+  const allowance = dayAllowanceKcal(target, budget, settings.weeklyBudgetEnabled);
+  const eaten = totalMacros(logs);
+  const remaining = allowance - eaten.kcal;
+  const over = remaining < 0;
+  const pct = allowance > 0 ? Math.min(100, (eaten.kcal / allowance) * 100) : 0;
+
+  return (
+    <Card className="mt-3 p-4" onClick={() => navigate('/fuel')}>
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-fuel/15 text-fuel">
+          <FlameIcon className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold tracking-widest text-faint uppercase">
+            {over ? 'Te pasaste por' : 'Te queda hoy'}
+          </p>
+          <p
+            className={cx(
+              'tabular mt-0.5 text-2xl leading-none font-semibold',
+              over ? 'text-danger' : 'text-fuel',
+            )}
+          >
+            {fmtKcal(Math.abs(remaining))}
+            <span className="ml-1 text-xs font-medium text-muted">kcal</span>
+          </p>
+        </div>
+        <span className="tabular shrink-0 text-right text-[11px] text-faint">
+          P {fmtGrams(eaten.proteinG)}
+          {settings.proteinTargetG ? `/${settings.proteinTargetG}` : ''} g
+        </span>
+        <ChevronRight className="size-4 shrink-0 text-faint" />
+      </div>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-raised">
+        <div
+          className={cx('h-full rounded-full', over ? 'bg-danger' : 'bg-fuel')}
+          style={{ width: `${over ? 100 : pct}%` }}
+        />
+      </div>
+    </Card>
   );
 }
 

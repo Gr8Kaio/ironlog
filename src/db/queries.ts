@@ -1,16 +1,19 @@
 import { db } from './db';
 import type {
   Exercise,
+  Food,
+  FoodLog,
   MuscleGroup,
   PrType,
   Run,
   RunInterval,
   RunType,
+  WaterLog,
   Workout,
   WorkoutSet,
 } from './types';
 import { bestE1RM, epley1RM, isWorkingSet, setLoad, setVolume, topSet, workoutVolume } from '../lib/calc';
-import { localDateOf, monthKey, recentWeeks, weekStart } from '../lib/dates';
+import { addDaysToLocalDate, localDateOf, monthKey, recentWeeks, weekStart } from '../lib/dates';
 
 // ------------------------------------------------------------ history feed
 
@@ -462,4 +465,57 @@ function groupBy<T, K>(items: T[], key: (item: T) => K): Map<K, T[]> {
     map.set(k, list);
   }
   return map;
+}
+
+// ------------------------------------------------------------------- fuel
+
+export async function getLogsForDate(localDate: string): Promise<FoodLog[]> {
+  const logs = await db.foodLogs.where('localDate').equals(localDate).toArray();
+  return logs.sort((a, b) => a.loggedAt - b.loggedAt);
+}
+
+/** Every log in the Monday-based week containing `localDate`. */
+export async function getLogsForWeekOf(localDate: string): Promise<FoodLog[]> {
+  const start = weekStart(localDate);
+  return db.foodLogs
+    .where('localDate')
+    .between(start, addDaysToLocalDate(start, 6), true, true)
+    .toArray();
+}
+
+/**
+ * What the quick-add sheet opens on. Recently eaten first, then whatever is
+ * used most: after a couple of weeks the top of this list *is* your diet, and
+ * logging a repeat meal costs two taps.
+ */
+export async function getQuickFoods(limit = 24): Promise<Food[]> {
+  const all = await db.foods.toArray();
+  const live = all.filter((f) => !f.isArchived);
+  return live
+    .sort((a, b) => {
+      if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
+      const recency = (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0);
+      if (recency !== 0) return recency;
+      return b.useCount - a.useCount;
+    })
+    .slice(0, limit);
+}
+
+export async function getFoodLibrary(includeArchived = false): Promise<Food[]> {
+  const all = await db.foods.toArray();
+  return all
+    .filter((f) => includeArchived || !f.isArchived)
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+}
+
+/** Bumps the recency counters that order the quick-add sheet. */
+export async function touchFood(foodId: string): Promise<void> {
+  const food = await db.foods.get(foodId);
+  if (!food) return;
+  await db.foods.put({ ...food, lastUsedAt: Date.now(), useCount: food.useCount + 1 });
+}
+
+export async function getWaterForDate(localDate: string): Promise<WaterLog[]> {
+  const rows = await db.waterLogs.where('localDate').equals(localDate).toArray();
+  return rows.sort((a, b) => a.loggedAt - b.loggedAt);
 }

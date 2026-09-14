@@ -2,9 +2,10 @@ import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-d
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { seedIfEmpty } from './db/seed';
+import { seedFoodsIfMissing } from './db/seedFoods';
 import { backfillBodyweightSets } from './db/backfill';
 import { getActiveWorkout } from './db/queries';
-import { ChartIcon, GearIcon, HistoryIcon, HomeIcon, PlanIcon } from './components/icons';
+import { ChartIcon, FlameIcon, GearIcon, HistoryIcon, HomeIcon, PlanIcon } from './components/icons';
 import { cx } from './components/ui';
 import { Home } from './screens/Home';
 import { ExerciseLibrary } from './screens/ExerciseLibrary';
@@ -18,9 +19,13 @@ import { Progress } from './screens/Progress';
 import { ExerciseDetail } from './screens/ExerciseDetail';
 import { BodyMetrics } from './screens/BodyMetrics';
 import { SettingsScreen } from './screens/Settings';
+import { FoodLibrary } from './screens/FoodLibrary';
+import { FuelToday } from './screens/FuelToday';
+import { FuelWeek } from './screens/FuelWeek';
 
 const TABS = [
   { to: '/', label: 'Home', Icon: HomeIcon },
+  { to: '/fuel', label: 'Fuel', Icon: FlameIcon },
   { to: '/history', label: 'History', Icon: HistoryIcon },
   { to: '/progress', label: 'Progress', Icon: ChartIcon },
   { to: '/plans', label: 'Plans', Icon: PlanIcon },
@@ -35,6 +40,7 @@ export default function App() {
     // there is something to look at before anything real is logged.
     seedIfEmpty()
       .then(() => backfillBodyweightSets())
+      .then(() => seedFoodsIfMissing())
       .catch((err) => console.error('startup failed', err))
       .finally(() => setReady(true));
   }, []);
@@ -62,6 +68,10 @@ export default function App() {
         <Route path="/session/:workoutId" element={<SessionDetail />} />
         <Route path="/progress" element={<Progress />} />
         <Route path="/body" element={<BodyMetrics />} />
+        <Route path="/fuel" element={<FuelToday />} />
+        <Route path="/fuel/foods" element={<FoodLibrary />} />
+        <Route path="/fuel/week" element={<FuelWeek />} />
+        <Route path="/fuel/day/:localDate" element={<FuelToday />} />
         <Route path="/settings" element={<SettingsScreen />} />
       </Routes>
       <BottomDock />

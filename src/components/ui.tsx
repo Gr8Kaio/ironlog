@@ -122,7 +122,7 @@ export function Chip({
   className,
 }: {
   children: ReactNode;
-  tone?: 'neutral' | 'iron' | 'stride' | 'gold' | 'good';
+  tone?: 'neutral' | 'iron' | 'stride' | 'gold' | 'good' | 'fuel';
   className?: string;
 }) {
   const tones = {
@@ -131,6 +131,7 @@ export function Chip({
     stride: 'bg-stride/15 text-stride',
     gold: 'bg-gold/15 text-gold',
     good: 'bg-good/15 text-good',
+    fuel: 'bg-fuel/15 text-fuel',
   };
   return (
     <span
@@ -223,10 +224,18 @@ export function Stat({
   label: string;
   value: ReactNode;
   unit?: string;
-  tone?: 'iron' | 'stride' | 'gold';
+  tone?: 'iron' | 'stride' | 'gold' | 'fuel';
 }) {
   const toneClass =
-    tone === 'iron' ? 'text-iron' : tone === 'stride' ? 'text-stride' : tone === 'gold' ? 'text-gold' : 'text-fg';
+    tone === 'iron'
+      ? 'text-iron'
+      : tone === 'stride'
+        ? 'text-stride'
+        : tone === 'gold'
+          ? 'text-gold'
+          : tone === 'fuel'
+            ? 'text-fuel'
+            : 'text-fg';
   return (
     <div className="rounded-xl bg-surface px-3 py-2.5">
       <div className="text-[10px] font-semibold tracking-widest text-faint uppercase">{label}</div>

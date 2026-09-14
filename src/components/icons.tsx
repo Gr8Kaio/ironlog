@@ -152,3 +152,17 @@ export const NoteIcon = ({ className }: IconProps) => (
     <path d="M8.5 9h7M8.5 12.5h7M8.5 16h4" />
   </svg>
 );
+
+/** A flame: the fuel tab. Filled shape so it reads at 20 px on the dock. */
+export const FlameIcon = ({ className }: IconProps) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M12 2c.5 3-1.6 4.2-3 5.8A7.6 7.6 0 0 0 7 13a5 5 0 0 0 10 0c0-1.6-.6-2.8-1.4-3.9-.3 1-1 1.7-1.8 1.9.4-2.3-.3-4.6-1.8-6.2A6.9 6.9 0 0 1 12 2Zm0 12.2c.9 0 1.6.6 1.6 1.5S12.9 17.4 12 17.4s-1.6-.7-1.6-1.6.7-1.6 1.6-1.6Z" />
+  </svg>
+);
+
+/** A drop: the water tracker. */
+export const DropIcon = ({ className }: IconProps) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M12 2.7c-.3 0-.6.1-.8.4C9.6 5 6 9.4 6 13.4a6 6 0 0 0 12 0c0-4-3.6-8.4-5.2-10.3a1 1 0 0 0-.8-.4Zm0 15.6a4.9 4.9 0 0 1-4.2-2.4.7.7 0 0 1 1.2-.7 3.5 3.5 0 0 0 3 1.7.7.7 0 0 1 0 1.4Z" />
+  </svg>
+);

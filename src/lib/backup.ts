@@ -2,6 +2,8 @@ import { db, DEFAULT_SETTINGS, getSettings, updateSettings } from '../db/db';
 import type {
   BodyMetric,
   Exercise,
+  Food,
+  FoodLog,
   PersonalRecord,
   Routine,
   RoutineDay,
@@ -9,6 +11,7 @@ import type {
   Run,
   RunInterval,
   Settings,
+  WaterLog,
   Workout,
   WorkoutSet,
 } from '../db/types';
@@ -16,7 +19,12 @@ import { recomputeAllPrs } from './prs';
 import { epley1RM, paceSecPerKm, setLoad } from './calc';
 import { todayLocalDate } from './dates';
 
-export const BACKUP_VERSION = 1;
+/**
+ * 2 added the fuel tables, 3 the water log. An older file still imports (older
+ * is always readable); a newer one refuses to import into a build that predates
+ * it, which is the point — it would silently drop what it cannot represent.
+ */
+export const BACKUP_VERSION = 3;
 
 export interface BackupPayload {
   version: number;
@@ -33,6 +41,9 @@ export interface BackupPayload {
   runIntervals: RunInterval[];
   bodyMetrics: BodyMetric[];
   personalRecords: PersonalRecord[];
+  foods: Food[];
+  foodLogs: FoodLog[];
+  waterLogs: WaterLog[];
 }
 
 export async function buildBackup(): Promise<BackupPayload> {
@@ -48,6 +59,9 @@ export async function buildBackup(): Promise<BackupPayload> {
     runIntervals,
     bodyMetrics,
     personalRecords,
+    foods,
+    foodLogs,
+    waterLogs,
   ] = await Promise.all([
     getSettings(),
     db.exercises.toArray(),
@@ -60,6 +74,9 @@ export async function buildBackup(): Promise<BackupPayload> {
     db.runIntervals.toArray(),
     db.bodyMetrics.toArray(),
     db.personalRecords.toArray(),
+    db.foods.toArray(),
+    db.foodLogs.toArray(),
+    db.waterLogs.toArray(),
   ]);
 
   return {
@@ -77,6 +94,9 @@ export async function buildBackup(): Promise<BackupPayload> {
     runIntervals,
     bodyMetrics,
     personalRecords,
+    foods,
+    foodLogs,
+    waterLogs,
   };
 }
 
@@ -110,6 +130,9 @@ const TABLES = [
   'runs',
   'runIntervals',
   'bodyMetrics',
+  'foods',
+  'foodLogs',
+  'waterLogs',
 ] as const;
 
 export function parseBackup(text: string): BackupPayload {

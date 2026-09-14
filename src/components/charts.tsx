@@ -12,6 +12,7 @@ export const CHART = {
   iron: '#f97316',
   stride: '#22d3ee',
   gold: '#fbbf24',
+  fuel: '#a3e635',
   grid: '#22262c',
   axis: '#6b7280',
   text: '#9aa2ae',

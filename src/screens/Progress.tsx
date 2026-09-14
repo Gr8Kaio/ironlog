@@ -45,6 +45,7 @@ import {
   TooltipBox,
 } from '../components/charts';
 import { ChevronRight } from '../components/icons';
+import { FuelProgress } from '../components/FuelProgress';
 import {
   Card,
   EmptyState,
@@ -60,6 +61,7 @@ const TABS = [
   { value: 'lifts' as const, label: 'Lifts' },
   { value: 'running' as const, label: 'Running' },
   { value: 'body' as const, label: 'Body' },
+  { value: 'fuel' as const, label: 'Fuel' },
 ];
 
 type Tab = (typeof TABS)[number]['value'];
@@ -72,7 +74,15 @@ export function Progress() {
       <TopBar title="Progress" />
       <Segmented options={TABS} value={tab} onChange={setTab} />
       <div className="mt-4">
-        {tab === 'lifts' ? <LiftProgress /> : tab === 'running' ? <RunProgress /> : <BodyProgress />}
+        {tab === 'lifts' ? (
+          <LiftProgress />
+        ) : tab === 'running' ? (
+          <RunProgress />
+        ) : tab === 'body' ? (
+          <BodyProgress />
+        ) : (
+          <FuelProgress />
+        )}
       </div>
     </Screen>
   );

@@ -183,6 +183,101 @@ export interface BodyMetric {
   notes?: string;
 }
 
+// ------------------------------------------------------------------- fuel
+
+export const MEAL_SLOTS = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+export type MealSlot = (typeof MEAL_SLOTS)[number];
+
+/** `unit` is for things counted rather than weighed: an egg, a can, a slice. */
+export const FOOD_UNITS = ['g', 'ml', 'unit'] as const;
+export type FoodUnit = (typeof FOOD_UNITS)[number];
+
+/** A named shortcut for an amount, in the food's own `refUnit`. */
+export interface Portion {
+  label: string;
+  amount: number;
+}
+
+/**
+ * An entry in your personal food library.
+ *
+ * Macros are stored against `refAmount` of `refUnit` rather than always per
+ * 100 g, so "1 huevo" and "100 g de arroz" are the same shape with no special
+ * case. Everything else multiplies by `amount / refAmount`.
+ */
+export interface Food {
+  id: string;
+  name: string;
+  brand?: string;
+  refAmount: number;
+  refUnit: FoodUnit;
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  fiberG?: number | null;
+  portions: Portion[];
+  /** Where the numbers came from, so any value can be audited later. */
+  source?: string;
+  /**
+   * Set on rows that came from the shipped library. It is what lets a later
+   * release add foods to an install that already has some: seeding matches on
+   * this, so new entries arrive and edited ones are never overwritten.
+   */
+  seedSlug?: string;
+  isFavorite: boolean;
+  isArchived: boolean;
+  /** Drives the "recent" ordering in the quick-add sheet. */
+  lastUsedAt?: number | null;
+  useCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * One thing eaten, once.
+ *
+ * The macros are copied in rather than read back through `foodId`: correcting
+ * a food's values later must not silently rewrite what you already ate. Same
+ * reasoning as the bodyweight snapshot on a set.
+ */
+export interface FoodLog {
+  id: string;
+  localDate: string;
+  loggedAt: number;
+  foodId?: string | null;
+  name: string;
+  amount: number;
+  unit: FoodUnit;
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  fiberG?: number | null;
+  meal: MealSlot;
+  /**
+   * A meal you eyeballed instead of weighed — someone else's kitchen, a
+   * restaurant. Kept so the weekly view can say how much of the total is
+   * estimated, which is honest in a way that either faking precision or
+   * skipping the entry is not.
+   */
+  estimated: boolean;
+  note?: string;
+}
+
+/**
+ * One drink, logged. Volume only: there is nothing else worth storing, and a
+ * counter you can undo beats a number you have to retype.
+ */
+export interface WaterLog {
+  id: string;
+  localDate: string;
+  loggedAt: number;
+  ml: number;
+  /** What it was, when it was not plain water. Mate counts; it is still fluid. */
+  label?: string;
+}
+
 export interface PlateStock {
   weightKg: number;
   /** Pairs available, since plates load symmetrically. */
@@ -199,4 +294,25 @@ export interface Settings {
   lastBackupAt?: number | null;
   backupNagDays: number;
   soundOnRestEnd: boolean;
+
+  /** Daily targets. Null means "not set yet" and hides the rings. */
+  kcalTarget?: number | null;
+  proteinTargetG?: number | null;
+  carbsTargetG?: number | null;
+  fatTargetG?: number | null;
+  /**
+   * Read the day against a rolling weekly budget instead of a hard daily cap.
+   * Fat responds to the weekly balance, so one big Sunday lunch is a budgeting
+   * question, not a failed day.
+   */
+  weeklyBudgetEnabled: boolean;
+  /**
+   * Share of the day's energy each meal is planned to carry. Configurable
+   * because meal shapes are personal: a 20/35/15/30 day and an 8/45/12/35 day
+   * are both normal, and a split that does not match how you actually eat
+   * produces targets you ignore.
+   */
+  mealSplit: Record<MealSlot, number>;
+  /** Daily fluid goal in millilitres. Null hides the tracker entirely. */
+  waterTargetMl?: number | null;
 }
