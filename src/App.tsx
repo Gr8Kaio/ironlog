@@ -54,26 +54,30 @@ export default function App() {
   }
 
   return (
-    <div className="mx-auto min-h-dvh max-w-lg">
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/exercises" element={<ExerciseLibrary />} />
-        <Route path="/exercises/:exerciseId" element={<ExerciseDetail />} />
-        <Route path="/plans" element={<Routines />} />
-        <Route path="/plans/:routineId" element={<RoutineEditor />} />
-        <Route path="/workout/:workoutId" element={<ActiveWorkout />} />
-        <Route path="/run/new" element={<RunEditor />} />
-        <Route path="/run/:runId" element={<RunEditor />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/session/:workoutId" element={<SessionDetail />} />
-        <Route path="/progress" element={<Progress />} />
-        <Route path="/body" element={<BodyMetrics />} />
-        <Route path="/fuel" element={<FuelToday />} />
-        <Route path="/fuel/foods" element={<FoodLibrary />} />
-        <Route path="/fuel/week" element={<FuelWeek />} />
-        <Route path="/fuel/day/:localDate" element={<FuelToday />} />
-        <Route path="/settings" element={<SettingsScreen />} />
-      </Routes>
+    <div className="mx-auto flex h-dvh max-w-lg flex-col overflow-hidden">
+      {/* The only scrolling element on the page — see the comment on `body`
+          in index.css for why the document itself has to stay put. */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/exercises" element={<ExerciseLibrary />} />
+          <Route path="/exercises/:exerciseId" element={<ExerciseDetail />} />
+          <Route path="/plans" element={<Routines />} />
+          <Route path="/plans/:routineId" element={<RoutineEditor />} />
+          <Route path="/workout/:workoutId" element={<ActiveWorkout />} />
+          <Route path="/run/new" element={<RunEditor />} />
+          <Route path="/run/:runId" element={<RunEditor />} />
+          <Route path="/history" element={<History />} />
+          <Route path="/session/:workoutId" element={<SessionDetail />} />
+          <Route path="/progress" element={<Progress />} />
+          <Route path="/body" element={<BodyMetrics />} />
+          <Route path="/fuel" element={<FuelToday />} />
+          <Route path="/fuel/foods" element={<FoodLibrary />} />
+          <Route path="/fuel/week" element={<FuelWeek />} />
+          <Route path="/fuel/day/:localDate" element={<FuelToday />} />
+          <Route path="/settings" element={<SettingsScreen />} />
+        </Routes>
+      </div>
       <BottomDock />
     </div>
   );
