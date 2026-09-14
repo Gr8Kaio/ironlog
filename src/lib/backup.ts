@@ -16,6 +16,7 @@ import type {
   WorkoutSet,
 } from '../db/types';
 import { recomputeAllPrs } from './prs';
+import { seedFoodsIfMissing } from '../db/seedFoods';
 import { epley1RM, paceSecPerKm, setLoad } from './calc';
 import { todayLocalDate } from './dates';
 
@@ -161,6 +162,11 @@ export function parseBackup(text: string): BackupPayload {
  * Merge skips rows whose id already exists, so importing the same file twice
  * is a no-op rather than a duplicate history. Replace wipes first.
  *
+ * Replace only wipes the tables the file actually carries. A backup written
+ * before a feature existed has no opinion about that feature's data, and
+ * clearing it would destroy rows the file cannot put back — importing a v1
+ * export used to empty the whole food library and restore nothing.
+ *
  * PRs are always recomputed from the imported sets rather than trusted from
  * the file: a hand-edited or partial backup must not be able to leave a record
  * that no set supports.
@@ -171,18 +177,21 @@ export async function importBackup(
 ): Promise<ImportReport> {
   const report: ImportReport = { mode, added: {}, skipped: {}, warnings: [] };
 
+  const present = TABLES.filter((name) => Array.isArray(payload[name]));
+  const absent = TABLES.filter((name) => !Array.isArray(payload[name]));
+
   await db.transaction('rw', db.tables, async () => {
     if (mode === 'replace') {
-      for (const table of db.tables) await table.clear();
+      for (const name of present) await db.table(name).clear();
+      if (absent.length > 0) {
+        report.warnings.push(
+          `This backup does not include ${absent.join(', ')}, so what you already had there was kept.`,
+        );
+      }
     }
 
-    for (const name of TABLES) {
-      const rows = (payload[name] ?? []) as { id: string }[];
-      if (!Array.isArray(rows)) {
-        report.warnings.push(`${name} was missing or malformed and was skipped.`);
-        continue;
-      }
-
+    for (const name of present) {
+      const rows = payload[name] as { id: string }[];
       const table = db.table(name);
       const valid = rows.filter((row) => row && typeof row.id === 'string');
       if (valid.length !== rows.length) {
@@ -203,10 +212,22 @@ export async function importBackup(
     }
 
     if (payload.settings) {
-      await db.settings.put({ ...DEFAULT_SETTINGS, ...payload.settings, id: 'settings' });
+      // Current values win over the defaults for anything the file does not
+      // mention. An older export has no `kcalTarget` field at all, and falling
+      // back to the default would silently clear a target you had set.
+      const current = await getSettings();
+      await db.settings.put({
+        ...DEFAULT_SETTINGS,
+        ...current,
+        ...payload.settings,
+        id: 'settings',
+      });
     }
   });
 
+  // Outside the transaction, and after it: an import that arrived without a
+  // food library leaves the shipped one to be put back.
+  await seedFoodsIfMissing();
   await recomputeAllPrs();
   return report;
 }
