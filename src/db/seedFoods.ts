@@ -54,14 +54,14 @@ export const SEED_FOODS: SeedFood[] = [
     kcal: 208, proteinG: 20.4, carbsG: 0, fatG: 13.4, fiberG: 0,
     portions: [{ label: 'porcion', amount: 150 }],
     source: 'USDA SR Legacy #175167 - Fish, salmon, Atlantic, farmed, raw' },
-  { slug: 'atun-agua', name: 'Atun al agua (escurrido)', refAmount: 100, refUnit: 'g',
-    kcal: 116, proteinG: 25.5, carbsG: 0, fatG: 0.8, fiberG: 0,
-    portions: [{ label: 'lata chica', amount: 56 }, { label: 'lata', amount: 120 }],
-    source: 'USDA SR Legacy #171986 - Fish, tuna, light, canned in water, without salt, drained solids' },
-  { slug: 'huevo', name: 'Huevo entero', refAmount: 100, refUnit: 'g',
-    kcal: 143, proteinG: 12.6, carbsG: 0.7, fatG: 9.5, fiberG: 0,
-    portions: [{ label: 'huevo', amount: 50 }],
-    source: 'USDA SR Legacy #171287 - Egg, whole, raw, fresh' },
+  { slug: 'atun-agua', name: 'Atun al agua (lata escurrida)', refAmount: 1, refUnit: 'unit',
+    kcal: 139.2, proteinG: 30.6, carbsG: 0, fatG: 1, fiberG: 0,
+    portions: [],
+    source: 'USDA SR Legacy #171986 - Fish, tuna, light, canned in water, without salt, drained so | 1 unidad = 120 g' },
+  { slug: 'huevo', name: 'Huevo', refAmount: 1, refUnit: 'unit',
+    kcal: 71.5, proteinG: 6.3, carbsG: 0.4, fatG: 4.8, fiberG: 0,
+    portions: [],
+    source: 'USDA SR Legacy #171287 - Egg, whole, raw, fresh | 1 unidad = 50 g' },
   { slug: 'arroz', name: 'Arroz blanco (crudo)', refAmount: 100, refUnit: 'g',
     kcal: 365, proteinG: 7.1, carbsG: 80, fatG: 0.7, fiberG: 1.3,
     portions: [{ label: 'taza cruda', amount: 185 }],
@@ -82,10 +82,10 @@ export const SEED_FOODS: SeedFood[] = [
     kcal: 364, proteinG: 10.3, carbsG: 76.3, fatG: 1, fiberG: 2.7,
     portions: [],
     source: 'USDA SR Legacy #169761 - Wheat flour, white, all-purpose, unenriched' },
-  { slug: 'pan-integral', name: 'Pan integral', refAmount: 100, refUnit: 'g',
-    kcal: 252, proteinG: 12.4, carbsG: 42.7, fatG: 3.5, fiberG: 6,
-    portions: [{ label: 'rebanada', amount: 28 }],
-    source: 'USDA SR Legacy #172688 - Bread, whole-wheat, commercially prepared' },
+  { slug: 'pan-integral', name: 'Pan integral (rebanada)', refAmount: 1, refUnit: 'unit',
+    kcal: 70.6, proteinG: 3.5, carbsG: 12, fatG: 1, fiberG: 1.7,
+    portions: [],
+    source: 'USDA SR Legacy #172688 - Bread, whole-wheat, commercially prepared | 1 unidad = 28 g' },
   { slug: 'lentejas', name: 'Lentejas (secas)', refAmount: 100, refUnit: 'g',
     kcal: 352, proteinG: 24.6, carbsG: 63.4, fatG: 1.1, fiberG: 10.7,
     portions: [],
@@ -102,14 +102,14 @@ export const SEED_FOODS: SeedFood[] = [
     kcal: 86, proteinG: 1.6, carbsG: 20.1, fatG: 0.1, fiberG: 3,
     portions: [{ label: 'mediana', amount: 130 }],
     source: 'USDA SR Legacy #168482 - Sweet potato, raw, unprepared (Includes foods for USDA\'s Food Distribu' },
-  { slug: 'banana', name: 'Banana', refAmount: 100, refUnit: 'g',
-    kcal: 89, proteinG: 1.1, carbsG: 22.8, fatG: 0.3, fiberG: 2.6,
-    portions: [{ label: 'mediana', amount: 118 }],
-    source: 'USDA SR Legacy #173944 - Bananas, raw' },
-  { slug: 'manzana', name: 'Manzana (con cascara)', refAmount: 100, refUnit: 'g',
-    kcal: 57, proteinG: 0.3, carbsG: 13.6, fatG: 0.1, fiberG: 2.4,
-    portions: [{ label: 'mediana', amount: 182 }],
-    source: 'USDA SR Legacy #168202 - Apples, raw, golden delicious, with skin' },
+  { slug: 'banana', name: 'Banana', refAmount: 1, refUnit: 'unit',
+    kcal: 105, proteinG: 1.3, carbsG: 27, fatG: 0.4, fiberG: 3.1,
+    portions: [],
+    source: 'USDA SR Legacy #173944 - Bananas, raw | 1 unidad = 118 g' },
+  { slug: 'manzana', name: 'Manzana', refAmount: 1, refUnit: 'unit',
+    kcal: 103.7, proteinG: 0.5, carbsG: 24.8, fatG: 0.3, fiberG: 4.4,
+    portions: [],
+    source: 'USDA SR Legacy #168202 - Apples, raw, golden delicious, with skin | 1 unidad = 182 g' },
   { slug: 'palta', name: 'Palta', refAmount: 100, refUnit: 'g',
     kcal: 160, proteinG: 2, carbsG: 8.5, fatG: 14.7, fiberG: 6.7,
     portions: [{ label: 'media', amount: 100 }, { label: 'entera', amount: 200 }],
@@ -206,26 +206,26 @@ export const SEED_FOODS: SeedFood[] = [
     kcal: 125, proteinG: 19, carbsG: 0, fatG: 5.5, fiberG: 0,
     portions: [{ label: 'porcion', amount: 150 }],
     source: 'ARGENFOODS (UNLu), tabla Carnes y derivados, fila 511' },
-  { slug: 'hamburguesa-casera', name: 'Hamburguesa de carne (cruda)', refAmount: 100, refUnit: 'g',
-    kcal: 219, proteinG: 17.3, carbsG: 0, fatG: 16.5, fiberG: 0,
-    portions: [{ label: 'medallon', amount: 90 }],
-    source: 'ARGENFOODS (UNLu), tabla Carnes y derivados, fila 553' },
-  { slug: 'hamburguesa-light', name: 'Hamburguesa light (cruda)', refAmount: 100, refUnit: 'g',
-    kcal: 175, proteinG: 18.4, carbsG: 0, fatG: 11.3, fiberG: 0,
-    portions: [{ label: 'medallon', amount: 90 }],
-    source: 'ARGENFOODS (UNLu), tabla Carnes y derivados, fila 555' },
-  { slug: 'chorizo', name: 'Chorizo fresco (crudo)', refAmount: 100, refUnit: 'g',
+  { slug: 'hamburguesa-casera', name: 'Hamburguesa de carne (cruda)', refAmount: 1, refUnit: 'unit',
+    kcal: 197.1, proteinG: 15.6, carbsG: 0, fatG: 14.8, fiberG: 0,
+    portions: [],
+    source: 'ARGENFOODS (UNLu), tabla Carnes y derivados, fila 553 | 1 unidad = 90 g' },
+  { slug: 'hamburguesa-light', name: 'Hamburguesa light (cruda)', refAmount: 1, refUnit: 'unit',
+    kcal: 157.5, proteinG: 16.6, carbsG: 0, fatG: 10.2, fiberG: 0,
+    portions: [],
+    source: 'ARGENFOODS (UNLu), tabla Carnes y derivados, fila 555 | 1 unidad = 90 g' },
+  { slug: 'chorizo', name: 'Chorizo fresco (crudo)', refAmount: 1, refUnit: 'unit',
     kcal: 454, proteinG: 13, carbsG: 1.1, fatG: 44.2, fiberG: 0,
-    portions: [{ label: 'chorizo', amount: 100 }],
-    source: 'ARGENFOODS (UNLu), tabla Carnes y derivados, fila 218' },
+    portions: [],
+    source: 'ARGENFOODS (UNLu), tabla Carnes y derivados, fila 218 | 1 unidad = 100 g' },
   { slug: 'panceta', name: 'Panceta', refAmount: 100, refUnit: 'g',
     kcal: 670, proteinG: 8.3, carbsG: 0, fatG: 70.8, fiberG: 0,
     portions: [{ label: 'feta', amount: 20 }],
     source: 'ARGENFOODS (UNLu), tabla Carnes y derivados, fila 217' },
-  { slug: 'jamon-cocido', name: 'Jamon cocido', refAmount: 100, refUnit: 'g',
-    kcal: 211, proteinG: 20.3, carbsG: 0, fatG: 14.4, fiberG: 0,
-    portions: [{ label: 'feta', amount: 25 }],
-    source: 'ARGENFOODS (UNLu), tabla Carnes y derivados, fila 216' },
+  { slug: 'jamon-cocido', name: 'Jamon cocido (feta)', refAmount: 1, refUnit: 'unit',
+    kcal: 52.8, proteinG: 5.1, carbsG: 0, fatG: 3.6, fiberG: 0,
+    portions: [],
+    source: 'ARGENFOODS (UNLu), tabla Carnes y derivados, fila 216 | 1 unidad = 25 g' },
   { slug: 'pollo-horno', name: 'Pollo asado al horno', refAmount: 100, refUnit: 'g',
     kcal: 162, proteinG: 28.4, carbsG: 0, fatG: 5.4, fiberG: 0,
     portions: [{ label: 'porcion', amount: 200 }],
@@ -242,11 +242,11 @@ export const SEED_FOODS: SeedFood[] = [
     kcal: 365, proteinG: 33.4, carbsG: 3.4, fatG: 24.2, fiberG: 0,
     portions: [{ label: 'cucharada rallado', amount: 5 }],
     source: 'ARGENFOODS (UNLu), tabla Leche y derivados, fila 335' },
-  { slug: 'ricota', name: 'Ricota (entera)', refAmount: 100, refUnit: 'g',
+  { slug: 'ricota', name: 'Queso ricota entero', refAmount: 100, refUnit: 'g',
     kcal: 168, proteinG: 11.6, carbsG: 4, fatG: 11.8, fiberG: 0,
     portions: [{ label: 'cucharada', amount: 30 }],
     source: 'ARGENFOODS (UNLu), tabla Leche y derivados, fila 338' },
-  { slug: 'ricota-semi', name: 'Ricota semidescremada', refAmount: 100, refUnit: 'g',
+  { slug: 'ricota-semi', name: 'Queso ricota semidescremado', refAmount: 100, refUnit: 'g',
     kcal: 168, proteinG: 11.6, carbsG: 4, fatG: 11.7, fiberG: 0,
     portions: [{ label: 'cucharada', amount: 30 }],
     source: 'ARGENFOODS (UNLu), tabla Leche y derivados, fila 551' },
@@ -258,10 +258,10 @@ export const SEED_FOODS: SeedFood[] = [
     kcal: 260, proteinG: 6.2, carbsG: 52.9, fatG: 1.6, fiberG: 0,
     portions: [{ label: 'cucharada', amount: 20 }],
     source: 'ARGENFOODS (UNLu), tabla Productos azucarados, fila 546' },
-  { slug: 'pan-frances', name: 'Pan frances', refAmount: 100, refUnit: 'g',
-    kcal: 269, proteinG: 9.3, carbsG: 57.4, fatG: 0.2, fiberG: 0,
-    portions: [{ label: 'mignon', amount: 70 }, { label: 'rebanada', amount: 30 }],
-    source: 'ARGENFOODS (UNLu), tabla Cereales y derivados, fila 36' },
+  { slug: 'pan-frances', name: 'Pan frances (mignon)', refAmount: 1, refUnit: 'unit',
+    kcal: 188.3, proteinG: 6.5, carbsG: 40.2, fatG: 0.1, fiberG: 0,
+    portions: [],
+    source: 'ARGENFOODS (UNLu), tabla Cereales y derivados, fila 36 | 1 unidad = 70 g' },
   { slug: 'pan-criollo', name: 'Pan criollo', refAmount: 100, refUnit: 'g',
     kcal: 280, proteinG: 8.7, carbsG: 60.7, fatG: 0.3, fiberG: 0,
     portions: [{ label: 'pan', amount: 60 }],
@@ -270,22 +270,26 @@ export const SEED_FOODS: SeedFood[] = [
     kcal: 235, proteinG: 9.8, carbsG: 51.5, fatG: 1.6, fiberG: 9.2,
     portions: [{ label: 'rebanada', amount: 30 }],
     source: 'ARGENFOODS (UNLu), tabla Cereales y derivados, fila 41' },
-  { slug: 'grisines', name: 'Grisines', refAmount: 100, refUnit: 'g',
-    kcal: 342, proteinG: 12.5, carbsG: 72.6, fatG: 0.2, fiberG: 0,
-    portions: [{ label: 'grisin', amount: 6 }],
-    source: 'ARGENFOODS (UNLu), tabla Cereales y derivados, fila 31' },
-  { slug: 'galletitas-agua', name: 'Galletitas de agua', refAmount: 100, refUnit: 'g',
-    kcal: 442, proteinG: 13.5, carbsG: 67.6, fatG: 15.5, fiberG: 0,
-    portions: [{ label: 'galletita', amount: 6 }],
-    source: 'ARGENFOODS (UNLu), tabla Cereales y derivados, fila 24' },
-  { slug: 'yogur-griego-natural', name: 'Yogur griego natural sin endulzar', brand: 'Yogurisimo', refAmount: 190, refUnit: 'g',
+  { slug: 'grisines', name: 'Grisin', refAmount: 1, refUnit: 'unit',
+    kcal: 20.5, proteinG: 0.8, carbsG: 4.4, fatG: 0, fiberG: 0,
+    portions: [],
+    source: 'ARGENFOODS (UNLu), tabla Cereales y derivados, fila 31 | 1 unidad = 6 g' },
+  { slug: 'galletitas-agua', name: 'Galletita de agua', refAmount: 1, refUnit: 'unit',
+    kcal: 26.5, proteinG: 0.8, carbsG: 4.1, fatG: 0.9, fiberG: 0,
+    portions: [],
+    source: 'ARGENFOODS (UNLu), tabla Cereales y derivados, fila 24 | 1 unidad = 6 g' },
+  { slug: 'yogur-griego-natural', name: 'Yogur griego natural (pote)', brand: 'Yogurisimo', refAmount: 1, refUnit: 'unit',
     kcal: 154, proteinG: 12, carbsG: 13, fatG: 6, fiberG: 0,
-    portions: [{ label: 'pote', amount: 190 }],
-    source: 'Etiqueta del fabricante, yogurisimo.com.ar, porcion 190 g' },
-  { slug: 'yogur-firme-descremado', name: 'Yogur firme descremado (frutilla)', brand: 'La Serenisima', refAmount: 190, refUnit: 'g',
+    portions: [],
+    source: 'Etiqueta del fabricante, yogurisimo.com.ar, porcion 190 g = 1 pote' },
+  { slug: 'yogur-firme-descremado', name: 'Yogur firme descremado (pote)', brand: 'La Serenisima', refAmount: 1, refUnit: 'unit',
     kcal: 77, proteinG: 8.3, carbsG: 11, fatG: 0, fiberG: 0,
-    portions: [{ label: 'pote', amount: 190 }],
-    source: 'Etiqueta del fabricante, laserenisimanutricion.com.ar, porcion 190 g' },
+    portions: [],
+    source: 'Etiqueta del fabricante, laserenisimanutricion.com.ar, porcion 190 g = 1 pote' },
+  { slug: 'galletitas-rumba', name: 'Galletita Rumba', brand: 'Bagley', refAmount: 1, refUnit: 'unit',
+    kcal: 64.3, proteinG: 1.2, carbsG: 9.7, fatG: 2.4, fiberG: 0,
+    portions: [],
+    source: 'Open Food Facts, codigo de barras 7790040930605 - 459 kcal/100 g | 1 galletita = 14 g, estimado' },
   { slug: 'queso-untable-light', name: 'Queso untable light', brand: 'Casancrem', refAmount: 30, refUnit: 'g',
     kcal: 36, proteinG: 2.4, carbsG: 2.8, fatG: 1.7, fiberG: 0,
     portions: [{ label: 'cucharada', amount: 10 }, { label: 'porcion', amount: 30 }],
@@ -340,32 +344,69 @@ export function seedFoodToFood(seed: SeedFood, now: number): Food {
   };
 }
 
-let seedingFoods: Promise<number> | null = null;
+export interface SeedReport {
+  added: number;
+  refreshed: number;
+}
+
+let seedingFoods: Promise<SeedReport> | null = null;
 
 /**
- * Adds every shipped food the library does not already have, matched on
- * `seedSlug`.
+ * Adds every shipped food the library does not have, and refreshes the ones it
+ * does, matched on `seedSlug`.
  *
- * Deliberately not "seed only when the table is empty": this feature ships
- * into installs that already have exercises and history, and a later release
- * that adds foods has to be able to reach a library that is already populated.
- * Matching on the slug also means a row you edited, renamed or archived is
- * left alone — it is already there, so it is never rewritten.
+ * Deliberately not "seed only when the table is empty": this ships into
+ * installs that already have history, and a later release that adds a food —
+ * or corrects one — has to reach a library that is already populated.
+ *
+ * A row is only refreshed while `updatedAt === createdAt`, which holds for
+ * every seeded row until it is saved through the editor. That is what lets a
+ * shipped correction land while a food you fixed yourself is never quietly
+ * overwritten. Logging a food does not count as touching it: `touchFood` moves
+ * the usage counters and leaves `updatedAt` alone.
  */
-export function seedFoodsIfMissing(): Promise<number> {
+export function seedFoodsIfMissing(): Promise<SeedReport> {
   seedingFoods ??= runSeedFoods().finally(() => {
     seedingFoods = null;
   });
   return seedingFoods;
 }
 
-async function runSeedFoods(): Promise<number> {
-  const existing = new Set(
-    (await db.foods.toArray()).map((f) => f.seedSlug).filter(Boolean) as string[],
+async function runSeedFoods(): Promise<SeedReport> {
+  const existing = await db.foods.toArray();
+  const bySlug = new Map(
+    existing.filter((f) => f.seedSlug).map((f) => [f.seedSlug as string, f]),
   );
-  const missing = SEED_FOODS.filter((s) => !existing.has(s.slug));
-  if (missing.length === 0) return 0;
   const now = Date.now();
-  await db.foods.bulkPut(missing.map((seed) => seedFoodToFood(seed, now)));
-  return missing.length;
+
+  const missing = SEED_FOODS.filter((seed) => !bySlug.has(seed.slug));
+
+  const refreshed: Food[] = [];
+  for (const seed of SEED_FOODS) {
+    const row = bySlug.get(seed.slug);
+    if (!row || row.updatedAt !== row.createdAt) continue;
+
+    const next: Food = {
+      ...seedFoodToFood(seed, row.createdAt),
+      id: row.id,
+      isFavorite: row.isFavorite,
+      isArchived: row.isArchived,
+      lastUsedAt: row.lastUsedAt,
+      useCount: row.useCount,
+    };
+
+    const moved =
+      row.name !== next.name ||
+      row.refUnit !== next.refUnit ||
+      row.refAmount !== next.refAmount ||
+      row.kcal !== next.kcal ||
+      row.proteinG !== next.proteinG ||
+      row.carbsG !== next.carbsG ||
+      row.fatG !== next.fatG;
+    if (moved) refreshed.push(next);
+  }
+
+  const writes = [...missing.map((seed) => seedFoodToFood(seed, now)), ...refreshed];
+  if (writes.length > 0) await db.foods.bulkPut(writes);
+  return { added: missing.length, refreshed: refreshed.length };
 }

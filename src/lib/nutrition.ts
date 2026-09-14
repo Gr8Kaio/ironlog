@@ -505,3 +505,23 @@ export function weeklyIntake(
     };
   });
 }
+
+/**
+ * Free-text food matching.
+ *
+ * Every word has to appear somewhere in the name or brand, in any order, and
+ * accents are folded away first. Matching the query as one contiguous string
+ * meant "queso ricota" found nothing while "Ricota (entera)" sat right there,
+ * and "brócoli" missed a library that spells it "Brocoli".
+ */
+const COMBINING = /[\u0300-\u036f]/g;
+
+const fold = (s: string): string =>
+  s.normalize('NFD').replace(COMBINING, '').toLowerCase();
+
+export function matchesFood(food: { name: string; brand?: string }, query: string): boolean {
+  const words = fold(query).trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const hay = fold(`${food.name} ${food.brand ?? ''}`);
+  return words.every((w) => hay.includes(w));
+}

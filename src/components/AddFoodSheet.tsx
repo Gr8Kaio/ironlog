@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, newId } from '../db/db';
 import type { Food, FoodLog, MealSlot, Portion } from '../db/types';
 import { getQuickFoods, touchFood } from '../db/queries';
-import { MEAL_LABEL, fmtGrams, fmtKcal, macrosFor } from '../lib/nutrition';
+import { MEAL_LABEL, fmtGrams, fmtKcal, macrosFor, matchesFood } from '../lib/nutrition';
 import { Button, Card, Chip, Field, Sheet, TextInput, cx } from '../components/ui';
 import { FlameIcon } from './icons';
 
@@ -96,13 +96,7 @@ export function AddFoodSheet({
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (q === '') return quick ?? [];
-    return (all ?? [])
-      .filter(
-        (f) =>
-          !f.isArchived &&
-          (f.name.toLowerCase().includes(q) || (f.brand ?? '').toLowerCase().includes(q)),
-      )
-      .slice(0, 40);
+    return (all ?? []).filter((f) => !f.isArchived && matchesFood(f, query)).slice(0, 40);
   }, [query, quick, all]);
 
   const title = picked ? picked.name : freehand ? 'Carga rápida' : `Agregar a ${MEAL_LABEL[meal].toLowerCase()}`;
@@ -240,6 +234,10 @@ function AmountStep({
         cost={macros.kcal}
       />
 
+      {food.refUnit === 'unit' ? (
+        <CountPicker value={value} onChange={(n) => setAmount(String(n))} />
+      ) : null}
+
       {food.portions.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {food.portions.map((p: Portion) => (
@@ -252,7 +250,7 @@ function AmountStep({
         </div>
       ) : null}
 
-      <Field label={`Cantidad en ${unitWord}`}>
+      <Field label={food.refUnit === 'unit' ? 'Cuántos' : `Cantidad en ${unitWord}`}>
         <TextInput
           inputMode="decimal"
           value={amount}
@@ -420,5 +418,26 @@ function EstimatedToggle({
         <span className="block text-[11px] text-faint">Lo calculaste a ojo en vez de pesarlo</span>
       </span>
     </button>
+  );
+}
+
+/** Counting chips for a unit food: tapping 2 is the whole interaction. */
+export function CountPicker({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {[0.5, 1, 2, 3, 4, 6].map((n) => (
+        <button key={n} type="button" onClick={() => onChange(n)}>
+          <Chip tone={value === n ? 'fuel' : 'neutral'}>
+            {n === 0.5 ? 'media' : n}
+          </Chip>
+        </button>
+      ))}
+    </div>
   );
 }

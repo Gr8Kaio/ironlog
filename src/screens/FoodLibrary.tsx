@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, newId } from '../db/db';
 import type { Food, FoodUnit, Portion } from '../db/types';
 import { FOOD_UNITS } from '../db/types';
-import { energyMismatch, fmtGrams, fmtKcal, impliedKcal } from '../lib/nutrition';
+import { energyMismatch, fmtGrams, fmtKcal, impliedKcal, matchesFood } from '../lib/nutrition';
 import {
   Button,
   Card,
@@ -35,11 +35,8 @@ export function FoodLibrary() {
 
   const shown = useMemo(() => {
     if (!foods) return [];
-    const q = query.trim().toLowerCase();
     return foods.filter(
-      (f) =>
-        (showArchived ? f.isArchived : !f.isArchived) &&
-        (q === '' || f.name.toLowerCase().includes(q) || (f.brand ?? '').toLowerCase().includes(q)),
+      (f) => (showArchived ? f.isArchived : !f.isArchived) && matchesFood(f, query),
     );
   }, [foods, query, showArchived]);
 

@@ -5,6 +5,7 @@ import type { FoodLog, MealSlot } from '../db/types';
 import { MEAL_SLOTS } from '../db/types';
 import { MEAL_LABEL, fmtGrams, fmtKcal } from '../lib/nutrition';
 import { Button, Card, Chip, ConfirmRow, Field, Segmented, Sheet, TextInput } from './ui';
+import { CountPicker } from './AddFoodSheet';
 
 const num = (s: string): number => {
   const n = Number(s.replace(',', '.'));
@@ -114,6 +115,10 @@ export function EditLogSheet({ log, onClose }: { log: FoodLog | null; onClose: (
           </div>
         ) : (
           <>
+            {log.unit === 'unit' ? (
+              <CountPicker value={newAmount} onChange={(n) => setAmount(String(n))} />
+            ) : null}
+
             {food && food.portions.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {food.portions.map((p) => (
@@ -126,7 +131,7 @@ export function EditLogSheet({ log, onClose }: { log: FoodLog | null; onClose: (
               </div>
             ) : null}
 
-            <Field label={`Cantidad en ${unitWord}`}>
+            <Field label={log.unit === 'unit' ? 'Cuántos' : `Cantidad en ${unitWord}`}>
               <TextInput
                 inputMode="decimal"
                 value={amount}
