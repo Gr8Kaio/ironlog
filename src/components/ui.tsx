@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
+import { appHeight } from '../lib/viewport';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
@@ -277,7 +278,8 @@ function useKeyboardInset(active: boolean): { inset: number; visibleHeight: numb
 
     const update = () => {
       // offsetTop matters: iOS scrolls the visual viewport up as it opens.
-      const covered = window.innerHeight - vv.height - vv.offsetTop;
+      // The sheet's bottom is the app shell's, which can sit below innerHeight.
+      const covered = appHeight() - vv.height - vv.offsetTop;
       setState({ inset: Math.max(0, Math.round(covered)), visibleHeight: Math.round(vv.height) });
     };
     update();
@@ -326,7 +328,7 @@ export function Sheet({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+    <div className="fixed inset-x-0 top-0 z-50 flex h-(--app-h) flex-col justify-end">
       <button
         type="button"
         aria-label="Close"

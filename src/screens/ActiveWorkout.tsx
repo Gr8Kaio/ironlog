@@ -804,7 +804,9 @@ function RestBar({ timer }: { timer: ReturnType<typeof useRestTimer> }) {
   const done = timer.remaining === 0;
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg border-t border-line bg-surface/95 pb-safe backdrop-blur-lg">
+    // Absolute against the app shell, not fixed: the viewport ends short of
+    // the screen on iOS, so bottom-0 there would float above the edge.
+    <div className="absolute inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 pb-safe backdrop-blur-lg">
       <div className="h-0.5 w-full bg-line">
         <div
           className={cx('h-full transition-all duration-300', done ? 'bg-good' : 'bg-iron')}

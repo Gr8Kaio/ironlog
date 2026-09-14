@@ -47,25 +47,16 @@ export default function App() {
 
   if (!ready) {
     return (
-      <div className="fixed inset-0 mx-auto flex max-w-lg items-center justify-center text-muted">
+      <div className="fixed inset-x-0 top-0 mx-auto flex h-(--app-h) max-w-lg items-center justify-center text-muted">
         <div className="animate-pop text-sm">Loading…</div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 mx-auto flex max-w-lg flex-col overflow-hidden">
-      {/*
-        `fixed; inset: 0` rather than `h-dvh`: in a standalone iOS home-screen
-        app, `100dvh` has been measured short of the real screen more than
-        once, leaving a dead strip of body colour below the dock. Sizing
-        against the viewport via fixed positioning instead of a height unit
-        has not been.
-
-        This is also the only scrolling element on the page — see the
-        comment on `body` in index.css for why the document itself has to
-        stay put.
-      */}
+    <div className="fixed inset-x-0 top-0 mx-auto flex h-(--app-h) max-w-lg flex-col overflow-hidden">
+      {/* Sized by --app-h, not the viewport: see lib/viewport.ts. This is
+          the only scrolling element; see `body` in index.css for why. */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <Routes>
           <Route path="/" element={<Home />} />
