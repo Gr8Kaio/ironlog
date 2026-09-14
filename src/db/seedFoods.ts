@@ -250,10 +250,12 @@ export const SEED_FOODS: SeedFood[] = [
     kcal: 168, proteinG: 11.6, carbsG: 4, fatG: 11.8, fiberG: 0,
     portions: [{ label: 'cucharada', amount: 30 }],
     source: 'ARGENFOODS (UNLu), tabla Leche y derivados, fila 338' },
+  // ARGENFOODS fila 551 daba casi lo mismo que la entera (168 kcal, 11.7 g de
+  // grasa), imposible para una semidescremada; se reemplaza por USDA.
   { slug: 'ricota-semi', name: 'Queso ricota semidescremado', refAmount: 100, refUnit: 'g',
-    kcal: 168, proteinG: 11.6, carbsG: 4, fatG: 11.7, fiberG: 0,
+    kcal: 138, proteinG: 11.4, carbsG: 5.1, fatG: 7.9, fiberG: 0,
     portions: [{ label: 'cucharada', amount: 30 }],
-    source: 'ARGENFOODS (UNLu), tabla Leche y derivados, fila 551' },
+    source: 'USDA SR Legacy #170852 - Cheese, ricotta, part skim milk' },
   { slug: 'dulce-de-leche', name: 'Dulce de leche', refAmount: 100, refUnit: 'g',
     kcal: 314, proteinG: 6.5, carbsG: 57.4, fatG: 6.6, fiberG: 0,
     portions: [{ label: 'cucharada', amount: 20 }],
