@@ -46,24 +46,22 @@
     background: var(--color-ink);
     /* Stops iOS from inflating text in a way that breaks the set rows. */
     -webkit-text-size-adjust: 100%;
-    height: 100%;
-    overflow: hidden;
   }
 
   body {
     margin: 0;
-    height: 100%;
     background: var(--color-ink);
     color: var(--color-fg);
     font-family: var(--font-sans);
     /*
-     * The document itself never scrolls; #root's own inner div does. As a
-     * standalone home-screen app, iOS detaches `position: fixed` elements
-     * (the tab bar, the rest timer) from the viewport mid-scroll and they
-     * visibly float before snapping back — a WebKit compositing bug tied to
-     * scrolling the *document*. A nested scroll container sidesteps it.
+     * The document never scrolls: everything lives in the fixed app shell,
+     * which scrolls its own inner div. Scrolling the document made iOS float
+     * the fixed tab bar mid-scroll.
+     *
+     * Do not add `overflow: hidden` here or on html to enforce that. As a
+     * home-screen app, iOS then clips all painting at its short layout
+     * viewport, 59 pt above the screen's bottom edge (see lib/viewport.ts).
      */
-    overflow: hidden;
     overscroll-behavior-y: none;
   }
 
