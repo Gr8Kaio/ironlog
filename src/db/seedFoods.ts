@@ -169,10 +169,37 @@ export const SEED_FOODS: SeedFood[] = [
     kcal: 884, proteinG: 0, carbsG: 0, fatG: 100, fiberG: 0,
     portions: [{ label: 'cucharada', amount: 13.5 }, { label: 'chorrito', amount: 7 }],
     source: 'USDA SR Legacy #171413 - Oil, olive, salad or cooking' },
+  // Frutos secos: por 100 g, con una porcion "unidad" que deja cargarlos
+  // contados (15 almendras) en vez de pesados. Pesos por unidad de USDA SR28
+  // WEIGHT, pelados.
   { slug: 'almendras', name: 'Almendras', refAmount: 100, refUnit: 'g',
     kcal: 579, proteinG: 21.1, carbsG: 21.6, fatG: 49.9, fiberG: 12.5,
-    portions: [{ label: 'punado', amount: 28 }],
-    source: 'USDA SR Legacy #170567 - Nuts, almonds' },
+    portions: [{ label: 'punado', amount: 28 }, { label: 'unidad', amount: 1.2 }],
+    source: 'USDA SR Legacy #170567 - Nuts, almonds | 1 almendra = 1.2 g' },
+  { slug: 'mani-tostado', name: 'Mani tostado', refAmount: 100, refUnit: 'g',
+    kcal: 587, proteinG: 24.4, carbsG: 21.3, fatG: 49.7, fiberG: 8.4,
+    portions: [{ label: 'punado', amount: 28 }, { label: 'unidad', amount: 1 }],
+    source: 'USDA SR28 #16390 - Peanuts, all types, dry-roasted, without salt (con sal, #16090, da los mismos macros) | 1 mani = 1.0 g' },
+  { slug: 'nueces', name: 'Nueces (peladas)', refAmount: 100, refUnit: 'g',
+    kcal: 654, proteinG: 15.2, carbsG: 13.7, fatG: 65.2, fiberG: 6.7,
+    portions: [{ label: 'punado', amount: 28 }, { label: 'unidad', amount: 4 }],
+    source: 'USDA SR28 #12155 - Nuts, walnuts, english | 7 nueces enteras peladas = 28 g, 1 = 4 g' },
+  { slug: 'castanas-caju', name: 'Castanas de caju', refAmount: 100, refUnit: 'g',
+    kcal: 574, proteinG: 15.3, carbsG: 32.7, fatG: 46.4, fiberG: 3,
+    portions: [{ label: 'punado', amount: 28 }, { label: 'unidad', amount: 1.6 }],
+    source: 'USDA SR28 #12585 - Nuts, cashew nuts, dry roasted | 1 unidad = 1.6 g, aproximado: USDA no publica el peso por unidad; ~18 por 28 g segun etiquetas' },
+  { slug: 'avellanas', name: 'Avellanas (peladas)', refAmount: 100, refUnit: 'g',
+    kcal: 628, proteinG: 15, carbsG: 16.7, fatG: 60.8, fiberG: 9.7,
+    portions: [{ label: 'punado', amount: 28 }, { label: 'unidad', amount: 1.4 }],
+    source: 'USDA SR28 #12120 - Nuts, hazelnuts or filberts | 10 avellanas = 14 g' },
+  { slug: 'pistachos', name: 'Pistachos (pelados)', refAmount: 100, refUnit: 'g',
+    kcal: 569, proteinG: 21.1, carbsG: 27.6, fatG: 45.8, fiberG: 10.3,
+    portions: [{ label: 'punado', amount: 28 }, { label: 'unidad', amount: 0.7 }],
+    source: 'USDA SR28 #12652 - Nuts, pistachio nuts, dry roasted | 1 pistacho sin cascara = 0.7 g' },
+  { slug: 'castanas-para', name: 'Castanas de Para', refAmount: 100, refUnit: 'g',
+    kcal: 659, proteinG: 14.3, carbsG: 11.7, fatG: 67.1, fiberG: 7.5,
+    portions: [{ label: 'punado', amount: 28 }, { label: 'unidad', amount: 5 }],
+    source: 'USDA SR28 #12078 - Nuts, brazilnuts, dried, unblanched | 1 castana = 5.0 g' },
   { slug: 'mani-pasta', name: 'Pasta de mani', refAmount: 100, refUnit: 'g',
     kcal: 598, proteinG: 22.2, carbsG: 22.3, fatG: 51.4, fiberG: 5,
     portions: [{ label: 'cucharada', amount: 16 }],
@@ -445,7 +472,12 @@ async function runSeedFoods(): Promise<SeedReport> {
       row.kcal !== next.kcal ||
       row.proteinG !== next.proteinG ||
       row.carbsG !== next.carbsG ||
-      row.fatG !== next.fatG;
+      row.fatG !== next.fatG ||
+      // Portions too, or a new one (a "unidad" to count almonds by) never
+      // reaches an install that already has the food.
+      (row.fiberG ?? null) !== next.fiberG ||
+      row.source !== next.source ||
+      JSON.stringify(row.portions) !== JSON.stringify(next.portions);
     if (moved) refreshed.push(next);
   }
 

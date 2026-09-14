@@ -4,7 +4,7 @@ import { db, newId } from '../db/db';
 import type { Food, FoodLog, MealSlot, Portion } from '../db/types';
 import { getQuickFoods, touchFood } from '../db/queries';
 import { MEAL_LABEL, fmtGrams, fmtKcal, macrosFor, matchesFood } from '../lib/nutrition';
-import { Button, Card, Chip, Field, Sheet, TextInput, cx } from '../components/ui';
+import { Button, Card, Chip, Field, Segmented, Sheet, TextInput, cx } from '../components/ui';
 import { FlameIcon } from './icons';
 
 const num = (s: string): number => {
@@ -196,8 +196,14 @@ function AmountStep({
 }) {
   const [amount, setAmount] = useState(() => String(food.portions[0]?.amount ?? food.refAmount));
   const [estimated, setEstimated] = useState(false);
+  // A weighed food with a "unidad" portion can also be counted: 15 almendras
+  // instead of working out 18 g by hand. The log still stores grams.
+  const unitPortion =
+    food.refUnit === 'unit' ? undefined : food.portions.find((p) => p.label === 'unidad');
+  const [byCount, setByCount] = useState(false);
+  const [count, setCount] = useState('10');
 
-  const value = num(amount);
+  const value = byCount && unitPortion ? num(count) * unitPortion.amount : num(amount);
   const macros = macrosFor(food, value);
   const unitWord = food.refUnit === 'unit' ? 'unidad' : food.refUnit;
 
@@ -234,30 +240,66 @@ function AmountStep({
         cost={macros.kcal}
       />
 
-      {food.refUnit === 'unit' ? (
-        <CountPicker value={value} onChange={(n) => setAmount(String(n))} />
-      ) : null}
-
-      {food.portions.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
-          {food.portions.map((p: Portion) => (
-            <button key={p.label} type="button" onClick={() => setAmount(String(p.amount))}>
-              <Chip tone={value === p.amount ? 'fuel' : 'neutral'}>
-                {p.label} · {p.amount} {unitWord}
-              </Chip>
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      <Field label={food.refUnit === 'unit' ? 'Cuántos' : `Cantidad en ${unitWord}`}>
-        <TextInput
-          inputMode="decimal"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          autoFocus
+      {unitPortion ? (
+        <Segmented
+          options={[
+            { value: 'weight', label: 'Por peso' },
+            { value: 'count', label: 'Por unidad' },
+          ]}
+          value={byCount ? 'count' : 'weight'}
+          onChange={(v) => setByCount(v === 'count')}
         />
-      </Field>
+      ) : null}
+
+      {byCount && unitPortion ? (
+        <>
+          <CountPicker
+            value={num(count)}
+            onChange={(n) => setCount(String(n))}
+            options={[5, 10, 15, 20, 30]}
+          />
+          <Field
+            label="Cuántas unidades"
+            hint={`${fmtGrams(value)} g · 1 unidad = ${unitPortion.amount} g`}
+          >
+            <TextInput
+              inputMode="decimal"
+              value={count}
+              onChange={(e) => setCount(e.target.value)}
+              autoFocus
+            />
+          </Field>
+        </>
+      ) : (
+        <>
+          {food.refUnit === 'unit' ? (
+            <CountPicker value={value} onChange={(n) => setAmount(String(n))} />
+          ) : null}
+
+          {food.portions.some((p) => p !== unitPortion) ? (
+            <div className="flex flex-wrap gap-1.5">
+              {food.portions
+                .filter((p) => p !== unitPortion)
+                .map((p: Portion) => (
+                  <button key={p.label} type="button" onClick={() => setAmount(String(p.amount))}>
+                    <Chip tone={value === p.amount ? 'fuel' : 'neutral'}>
+                      {p.label} · {p.amount} {unitWord}
+                    </Chip>
+                  </button>
+                ))}
+            </div>
+          ) : null}
+
+          <Field label={food.refUnit === 'unit' ? 'Cuántos' : `Cantidad en ${unitWord}`}>
+            <TextInput
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              autoFocus
+            />
+          </Field>
+        </>
+      )}
 
       <Card className="p-3">
         <div className="tabular grid grid-cols-4 gap-2 text-center">
@@ -425,13 +467,15 @@ function EstimatedToggle({
 export function CountPicker({
   value,
   onChange,
+  options = [0.5, 1, 2, 3, 4, 6],
 }: {
   value: number;
   onChange: (next: number) => void;
+  options?: number[];
 }) {
   return (
     <div className="flex flex-wrap gap-1.5">
-      {[0.5, 1, 2, 3, 4, 6].map((n) => (
+      {options.map((n) => (
         <button key={n} type="button" onClick={() => onChange(n)}>
           <Chip tone={value === n ? 'fuel' : 'neutral'}>
             {n === 0.5 ? 'media' : n}
