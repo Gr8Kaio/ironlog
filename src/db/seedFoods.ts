@@ -69,6 +69,12 @@ export const SEED_FOODS: SeedFood[] = [
     kcal: 139.2, proteinG: 30.6, carbsG: 0, fatG: 1, fiberG: 0,
     portions: [],
     source: 'USDA SR Legacy #171986 - Fish, tuna, light, canned in water, without salt, drained so | 1 unidad = 120 g' },
+  // Escurrida: el aceite que queda en la lata no esta. Si lo usas, sumalo
+  // aparte con aceite-oliva (una lata de 170 g trae ~2 cucharadas).
+  { slug: 'atun-aceite', name: 'Atun al aceite (lata escurrida)', refAmount: 1, refUnit: 'unit',
+    kcal: 237.6, proteinG: 34.9, carbsG: 0, fatG: 9.9, fiberG: 0,
+    portions: [],
+    source: 'USDA SR Legacy #173708 - Fish, tuna, light, canned in oil, drained solids | 1 unidad = 120 g' },
   { slug: 'huevo', name: 'Huevo', refAmount: 1, refUnit: 'unit',
     kcal: 71.5, proteinG: 6.3, carbsG: 0.4, fatG: 4.8, fiberG: 0,
     portions: [],
