@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Link } from 'react-router-dom';
 import { db, getSettings, updateSettings } from '../db/db';
 import type { PlateStock, Surface } from '../db/types';
 import { SURFACES } from '../db/types';
@@ -357,9 +356,9 @@ export function SettingsScreen() {
         <p className="text-center text-[11px] text-faint">Export a backup first.</p>
       </Card>
 
-      <Link to="/debug/viewport" className="mt-6 block text-center text-[11px] text-faint">
+      <p className="mt-6 text-center text-[11px] text-faint">
         IronLog v{__APP_VERSION__} · offline-first · all data on this device
-      </Link>
+      </p>
 
       {/* Export sheet ---------------------------------------------------- */}
       <Sheet open={pending !== null} onClose={() => setPending(null)} title={pending?.label}>

@@ -58,9 +58,9 @@
      * which scrolls its own inner div. Scrolling the document made iOS float
      * the fixed tab bar mid-scroll.
      *
-     * Do not add `overflow: hidden` here or on html to enforce that. As a
-     * home-screen app, iOS then clips all painting at its short layout
-     * viewport, 59 pt above the screen's bottom edge (see lib/viewport.ts).
+     * Avoid `overflow: hidden` on html, body or the shell to enforce that:
+     * as a home-screen app, iOS can clip painting at its short layout
+     * viewport, 62 pt above the screen's bottom edge (see lib/viewport.ts).
      */
     overscroll-behavior-y: none;
   }

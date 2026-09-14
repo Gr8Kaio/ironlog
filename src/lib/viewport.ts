@@ -2,11 +2,11 @@
  * Height of the area the app actually gets to draw in, published as the CSS
  * variable `--app-h`.
  *
- * As an iOS home-screen app with a black-translucent status bar, the layout
- * viewport comes up short of the screen by the status-bar inset (59 pt on a
- * Dynamic Island phone). Everything sized against it — `100dvh`,
- * `position: fixed; inset: 0` — stops that far above the bottom edge and
- * leaves a dead strip under the tab bar. The screen size is the truth there.
+ * As an iOS home-screen app with a black-translucent status bar, innerHeight,
+ * 100dvh and 100svh come up short of the screen by the status-bar inset
+ * (measured: 812 of 874 pt, 62 pt short). Anything sized by them leaves a
+ * dead strip under the tab bar. `position: fixed; bottom: 0` still lands on
+ * the real bottom edge; the screen size is the truth for heights.
  */
 function measure(): number {
   const iosStandalone = (navigator as Navigator & { standalone?: boolean }).standalone === true;

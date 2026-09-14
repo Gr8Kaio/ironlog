@@ -22,7 +22,6 @@ import { SettingsScreen } from './screens/Settings';
 import { FoodLibrary } from './screens/FoodLibrary';
 import { FuelToday } from './screens/FuelToday';
 import { FuelWeek } from './screens/FuelWeek';
-import { ViewportDebug } from './screens/ViewportDebug';
 
 const TABS = [
   { to: '/', label: 'Home', Icon: HomeIcon },
@@ -55,9 +54,11 @@ export default function App() {
   }
 
   return (
-    <div className="fixed inset-x-0 top-0 mx-auto flex h-(--app-h) max-w-lg flex-col overflow-hidden">
-      {/* Sized by --app-h, not the viewport: see lib/viewport.ts. This is
-          the only scrolling element; see `body` in index.css for why. */}
+    <div className="fixed inset-x-0 top-0 mx-auto flex h-(--app-h) max-w-lg flex-col">
+      {/* Sized by --app-h, not the viewport: see lib/viewport.ts. No
+          overflow-hidden here: on iOS it clips at the short viewport and hid
+          the tab labels. The inner div is the only scroller; see `body` in
+          index.css for why. */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <Routes>
           <Route path="/" element={<Home />} />
@@ -76,9 +77,7 @@ export default function App() {
           <Route path="/fuel/foods" element={<FoodLibrary />} />
           <Route path="/fuel/week" element={<FuelWeek />} />
           <Route path="/fuel/day/:localDate" element={<FuelToday />} />
-          <Route path="/settings" element={<SettingsScreen />} />
-          <Route path="/debug/viewport" element={<ViewportDebug />} />
-        </Routes>
+          <Route path="/settings" element={<SettingsScreen />} />        </Routes>
       </div>
       <BottomDock />
     </div>
