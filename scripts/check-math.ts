@@ -6,7 +6,8 @@ import {
 import type { WorkoutSet } from '../src/db/types.ts';
 import { weekStart, localDateOf, recentWeeks, daysBetween } from '../src/lib/dates.ts';
 import { MEAL_IDEAS, ideasFor, mealTarget, roundAmount, scaleIdea } from '../src/lib/mealIdeas.ts';
-import type { Food, FoodUnit } from '../src/db/types.ts';
+import { buildWeekBudget, dayAllowanceKcal } from '../src/lib/nutrition.ts';
+import type { Food, FoodLog, FoodUnit } from '../src/db/types.ts';
 
 let failures = 0;
 function eq(label: string, actual: unknown, expected: unknown) {
@@ -114,6 +115,21 @@ eq('meal gets its share of what is left',
   { kcal: 480, proteinG: 50, carbsG: null, fatG: 20 });
 eq('a macro already covered leaves nothing, not a negative',
   mealTarget(300, { proteinG: 100, carbsG: 0, fatG: 0 }, { proteinG: 120, carbsG: 0, fatG: 0 }, 1).proteinG, 0);
+
+console.log('--- day allowance ---');
+const mkLog = (localDate: string, kcal: number) => ({ localDate, kcal, estimated: false }) as FoodLog;
+const monday = '2026-09-14';
+const mon = buildWeekBudget([mkLog(monday, 2095)], 2400, monday);
+eq("today's intake does not shrink today's allowance", dayAllowanceKcal(2400, mon, true), 2400);
+eq('a new target shows up in full the same day',
+  dayAllowanceKcal(2000, buildWeekBudget([mkLog(monday, 2095)], 2000, monday), true), 2000);
+eq('earlier days spread over the rest of the week',
+  dayAllowanceKcal(2400, buildWeekBudget(
+    [mkLog('2026-09-14', 2500), mkLog('2026-09-15', 2500), mkLog('2026-09-16', 1000)], 2400, '2026-09-16'), true),
+  2360);
+eq('budget off reads the flat target', dayAllowanceKcal(2400, mon, false), 2400);
+eq('an overspent week floors at zero',
+  dayAllowanceKcal(2400, buildWeekBudget([mkLog(monday, 17000)], 2400, '2026-09-15'), true), 0);
 
 console.log(failures === 0 ? '\nAll passed.' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

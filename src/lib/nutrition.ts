@@ -7,7 +7,8 @@
  * here reads a week at a time and reports what is left per remaining day.
  */
 import type { Food, FoodLog, MealSlot, Portion } from '../db/types';
-import { addDaysToLocalDate, daysBetween, todayLocalDate, weekStart } from './dates';
+// Explicit extension so scripts/check-math.ts can load this module in Node.
+import { addDaysToLocalDate, daysBetween, todayLocalDate, weekStart } from './dates.ts';
 
 export interface Macros {
   kcal: number;
@@ -116,6 +117,8 @@ export interface WeekBudget {
   /** kcalTarget × 7. */
   budgetKcal: number;
   consumedKcal: number;
+  /** The week's intake before today, which is what today's allowance is set from. */
+  consumedBeforeTodayKcal: number;
   /** Days already begun, today included. */
   daysElapsed: number;
   daysLeft: number;
@@ -139,6 +142,9 @@ export function buildWeekBudget(
   );
 
   const consumedKcal = inWeek.reduce((sum, l) => sum + l.kcal, 0);
+  const consumedBeforeTodayKcal = inWeek
+    .filter((l) => l.localDate < today)
+    .reduce((sum, l) => sum + l.kcal, 0);
   // daysBetween counts whole days, so today is elapsed the moment it starts.
   const daysElapsed = Math.min(7, Math.max(1, daysBetween(start, today) + 1));
   const daysLeft = 7 - daysElapsed;
@@ -149,6 +155,7 @@ export function buildWeekBudget(
     weekStartDate: start,
     budgetKcal,
     consumedKcal,
+    consumedBeforeTodayKcal,
     daysElapsed,
     daysLeft,
     remainingKcal,
@@ -262,10 +269,14 @@ export function dayAllowanceKcal(
   weeklyBudgetEnabled: boolean,
 ): number {
   if (!weeklyBudgetEnabled || !budget || budget.perDayLeft === null) return kcalTarget;
+  // Today's own intake stays out of this: it is what gets measured against the
+  // allowance. Counting it here too made each bite shrink the day's allowance
+  // by a seventh of itself, so a new target never showed up in full.
+  const perDay = (budget.budgetKcal - budget.consumedBeforeTodayKcal) / (budget.daysLeft + 1);
   // A week already overspent would otherwise hand back a negative allowance and
   // every meal target with it. Floor it: the honest reading is "nothing left",
   // not "eat minus 300".
-  return Math.max(0, budget.perDayLeft);
+  return Math.max(0, perDay);
 }
 
 export interface MealPlan {
