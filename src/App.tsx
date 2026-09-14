@@ -47,40 +47,43 @@ export default function App() {
 
   if (!ready) {
     return (
-      <div className="fixed inset-x-0 top-0 mx-auto flex h-(--app-h) max-w-lg items-center justify-center text-muted">
+      <div className="flex min-h-dvh items-center justify-center text-muted">
         <div className="animate-pop text-sm">Loading…</div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-x-0 top-0 mx-auto flex h-(--app-h) max-w-lg flex-col">
-      {/* Sized by --app-h, not the viewport: see lib/viewport.ts. No
-          overflow-hidden here: on iOS it clips at the short viewport and hid
-          the tab labels. The inner div is the only scroller; see `body` in
-          index.css for why. */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/exercises" element={<ExerciseLibrary />} />
-          <Route path="/exercises/:exerciseId" element={<ExerciseDetail />} />
-          <Route path="/plans" element={<Routines />} />
-          <Route path="/plans/:routineId" element={<RoutineEditor />} />
-          <Route path="/workout/:workoutId" element={<ActiveWorkout />} />
-          <Route path="/run/new" element={<RunEditor />} />
-          <Route path="/run/:runId" element={<RunEditor />} />
-          <Route path="/history" element={<History />} />
-          <Route path="/session/:workoutId" element={<SessionDetail />} />
-          <Route path="/progress" element={<Progress />} />
-          <Route path="/body" element={<BodyMetrics />} />
-          <Route path="/fuel" element={<FuelToday />} />
-          <Route path="/fuel/foods" element={<FoodLibrary />} />
-          <Route path="/fuel/week" element={<FuelWeek />} />
-          <Route path="/fuel/day/:localDate" element={<FuelToday />} />
-          <Route path="/settings" element={<SettingsScreen />} />        </Routes>
+    <>
+      {/*
+        The screens scroll in here, never the document: a scrolling document
+        made iOS float the fixed tab bar mid-screen. The dock and the rest bar
+        must stay their own `fixed bottom-0` elements outside this container;
+        inside a fixed container iOS cuts them off 62 pt above the screen edge.
+      */}
+      <div className="fixed inset-0 mx-auto max-w-lg overflow-y-auto overscroll-contain">
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/exercises" element={<ExerciseLibrary />} />
+        <Route path="/exercises/:exerciseId" element={<ExerciseDetail />} />
+        <Route path="/plans" element={<Routines />} />
+        <Route path="/plans/:routineId" element={<RoutineEditor />} />
+        <Route path="/workout/:workoutId" element={<ActiveWorkout />} />
+        <Route path="/run/new" element={<RunEditor />} />
+        <Route path="/run/:runId" element={<RunEditor />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/session/:workoutId" element={<SessionDetail />} />
+        <Route path="/progress" element={<Progress />} />
+        <Route path="/body" element={<BodyMetrics />} />
+        <Route path="/fuel" element={<FuelToday />} />
+        <Route path="/fuel/foods" element={<FoodLibrary />} />
+        <Route path="/fuel/week" element={<FuelWeek />} />
+        <Route path="/fuel/day/:localDate" element={<FuelToday />} />
+        <Route path="/settings" element={<SettingsScreen />} />
+      </Routes>
       </div>
       <BottomDock />
-    </div>
+    </>
   );
 }
 
@@ -122,7 +125,7 @@ function BottomDock() {
   if (location.pathname.startsWith('/workout/')) return null;
 
   return (
-    <nav className="shrink-0 border-t border-line-soft bg-ink pb-safe">
+    <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg border-t border-line-soft bg-ink/95 pb-safe backdrop-blur-lg">
       <ActiveWorkoutRow />
       <div className="flex">
         {TABS.map(({ to, label, Icon }) => (

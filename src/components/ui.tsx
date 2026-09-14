@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-import { appHeight } from '../lib/viewport';
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
@@ -9,10 +8,9 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 // ------------------------------------------------------------------ layout
 
 export function Screen({ children, className }: { children: ReactNode; className?: string }) {
-  // The dock sits in normal flow below this now, so it needs no clearance
-  // here — only a screen with its own floating footer (the rest timer)
-  // overrides this via className.
-  return <div className={cx('px-4 pb-6', className)}>{children}</div>;
+  // pb-36 clears the bottom dock at its tallest: tabs plus the in-progress
+  // row plus the home indicator.
+  return <div className={cx('px-4 pb-36', className)}>{children}</div>;
 }
 
 export function TopBar({
@@ -278,8 +276,7 @@ function useKeyboardInset(active: boolean): { inset: number; visibleHeight: numb
 
     const update = () => {
       // offsetTop matters: iOS scrolls the visual viewport up as it opens.
-      // The sheet's bottom is the app shell's, which can sit below innerHeight.
-      const covered = appHeight() - vv.height - vv.offsetTop;
+      const covered = window.innerHeight - vv.height - vv.offsetTop;
       setState({ inset: Math.max(0, Math.round(covered)), visibleHeight: Math.round(vv.height) });
     };
     update();
@@ -318,13 +315,17 @@ export function Sheet({
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
   }, [open, onClose]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-x-0 top-0 z-50 flex h-(--app-h) flex-col justify-end">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end">
       <button
         type="button"
         aria-label="Close"
