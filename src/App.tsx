@@ -54,14 +54,7 @@ export default function App() {
   }
 
   return (
-    <>
-      {/*
-        The screens scroll in here, never the document: a scrolling document
-        made iOS float the fixed tab bar mid-screen. The dock and the rest bar
-        must stay their own `fixed bottom-0` elements outside this container;
-        inside a fixed container iOS cuts them off 62 pt above the screen edge.
-      */}
-      <div className="fixed inset-0 mx-auto max-w-lg overflow-y-auto overscroll-contain">
+    <div className="mx-auto min-h-dvh max-w-lg">
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/exercises" element={<ExerciseLibrary />} />
@@ -81,9 +74,8 @@ export default function App() {
         <Route path="/fuel/day/:localDate" element={<FuelToday />} />
         <Route path="/settings" element={<SettingsScreen />} />
       </Routes>
-      </div>
       <BottomDock />
-    </>
+    </div>
   );
 }
 
