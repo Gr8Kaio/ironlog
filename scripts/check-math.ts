@@ -5,6 +5,8 @@ import {
 } from '../src/lib/calc.ts';
 import type { WorkoutSet } from '../src/db/types.ts';
 import { weekStart, localDateOf, recentWeeks, daysBetween } from '../src/lib/dates.ts';
+import { MEAL_IDEAS, ideasFor, mealTarget, roundAmount, scaleIdea } from '../src/lib/mealIdeas.ts';
+import type { Food, FoodUnit } from '../src/db/types.ts';
 
 let failures = 0;
 function eq(label: string, actual: unknown, expected: unknown) {
@@ -78,6 +80,40 @@ eq('late-night session keeps its own day', localDateOf(new Date(2026, 7, 26, 23,
 eq('recentWeeks ends on current', recentWeeks(3, '2026-08-26').at(-1), '2026-08-24');
 eq('recentWeeks length', recentWeeks(3, '2026-08-26').length, 3);
 eq('daysBetween across month', daysBetween('2026-07-30', '2026-08-02'), 3);
+
+console.log('--- meal ideas ---');
+const mkFood = (
+  slug: string, refAmount: number, refUnit: FoodUnit,
+  kcal: number, proteinG: number, carbsG: number, fatG: number,
+): Food => ({
+  id: slug, name: slug, seedSlug: slug, refAmount, refUnit, kcal, proteinG, carbsG, fatG,
+  fiberG: 0, portions: [], isFavorite: false, isArchived: false, useCount: 0, createdAt: 0, updatedAt: 0,
+});
+const lib = [
+  mkFood('pechuga-pollo', 100, 'g', 120, 22.5, 0, 2.6),
+  mkFood('arroz', 100, 'g', 365, 7.1, 80, 0.7),
+  mkFood('brocoli', 100, 'g', 34, 2.8, 6.6, 0.4),
+  mkFood('aceite-oliva', 100, 'g', 884, 0, 0, 100),
+];
+const bySlug = new Map(lib.map((f) => [f.seedSlug!, f]));
+const lunchIdea = MEAL_IDEAS.find((i) => i.id === 'arroz-pollo-brocoli')!;
+const lunch = scaleIdea(lunchIdea, bySlug, 840)!;
+eq('scaled lunch lands near its target', Math.round(lunch.macros.kcal), 841);
+eq('protein and carb scale', lunch.items.map((i) => i.amount), [250, 110, 150, 10]);
+eq('vegetables and oil stay put', scaleIdea(lunchIdea, bySlug, 400)!.items.slice(2).map((i) => i.amount), [150, 10]);
+eq('idea needing a missing food is dropped', scaleIdea(MEAL_IDEAS.find((i) => i.id === 'fideos-bolognesa')!, bySlug, 840), null);
+eq('only buildable ideas are offered',
+  ideasFor('lunch', lib, { kcal: 840, proteinG: 59, carbsG: 94, fatG: 24 }).map((i) => i.idea.id),
+  ['arroz-pollo-brocoli']);
+eq('eggs round to whole units', roundAmount(2.6, 'unit'), 3);
+eq('never zero units', roundAmount(0.2, 'unit'), 1);
+eq('small gram amounts round to 5', roundAmount(13, 'g'), 15);
+eq('large gram amounts round to 10', roundAmount(117, 'g'), 120);
+eq('meal gets its share of what is left',
+  mealTarget(480, { proteinG: 170, carbsG: null, fatG: 70 }, { proteinG: 70, carbsG: 0, fatG: 30 }, 0.5),
+  { kcal: 480, proteinG: 50, carbsG: null, fatG: 20 });
+eq('a macro already covered leaves nothing, not a negative',
+  mealTarget(300, { proteinG: 100, carbsG: 0, fatG: 0 }, { proteinG: 120, carbsG: 0, fatG: 0 }, 1).proteinG, 0);
 
 console.log(failures === 0 ? '\nAll passed.' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

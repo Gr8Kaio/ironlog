@@ -17,7 +17,9 @@ import {
   totalMacros,
 } from '../lib/nutrition';
 import { addDaysToLocalDate, formatDayLabel, todayLocalDate } from '../lib/dates';
+import { mealTarget } from '../lib/mealIdeas';
 import { AddFoodSheet } from '../components/AddFoodSheet';
+import { MealIdeasSheet } from '../components/MealIdeasSheet';
 import { EditLogSheet } from '../components/EditLogSheet';
 import { WaterCard } from '../components/WaterCard';
 import {
@@ -47,6 +49,7 @@ export function FuelToday() {
 
   const [adding, setAdding] = useState<MealSlot | null>(null);
   const [editing, setEditing] = useState<FoodLog | null>(null);
+  const [ideasMeal, setIdeasMeal] = useState<MealSlot | null>(null);
 
   const settings = useLiveQuery(() => getSettings(), [], undefined);
   const logs = useLiveQuery(() => getLogsForDate(date), [date], undefined);
@@ -102,6 +105,22 @@ export function FuelToday() {
   const remaining = allowance - eaten.kcal;
   const over = remaining < 0;
   const pct = allowance > 0 ? Math.min(100, (eaten.kcal / allowance) * 100) : 0;
+
+  const pendingShare = plans.filter((p) => !p.hasLogs).reduce((sum, p) => sum + split[p.meal], 0);
+  const ideasPlan = plans.find((p) => p.meal === ideasMeal);
+  const ideasTarget =
+    ideasPlan && pendingShare > 0
+      ? mealTarget(
+          ideasPlan.suggestedKcal,
+          {
+            proteinG: settings.proteinTargetG,
+            carbsG: settings.carbsTargetG,
+            fatG: settings.fatTargetG,
+          },
+          eaten,
+          split[ideasPlan.meal] / pendingShare,
+        )
+      : null;
 
   return (
     <Screen>
@@ -189,6 +208,7 @@ export function FuelToday() {
             consumedKcal={plan.consumedKcal}
             logs={logs.filter((l) => l.meal === plan.meal)}
             onAdd={() => setAdding(plan.meal)}
+            onIdeas={plan.hasLogs ? undefined : () => setIdeasMeal(plan.meal)}
             onEdit={setEditing}
           />
         ))}
@@ -215,6 +235,13 @@ export function FuelToday() {
       />
 
       <EditLogSheet log={editing} onClose={() => setEditing(null)} />
+
+      <MealIdeasSheet
+        meal={ideasMeal}
+        target={ideasTarget}
+        localDate={date}
+        onClose={() => setIdeasMeal(null)}
+      />
     </Screen>
   );
 }
@@ -246,6 +273,7 @@ function MealBlock({
   consumedKcal,
   logs,
   onAdd,
+  onIdeas,
   onEdit,
 }: {
   meal: MealSlot;
@@ -254,6 +282,8 @@ function MealBlock({
   consumedKcal: number;
   logs: FoodLog[];
   onAdd: () => void;
+  /** Only offered while the meal is still empty. */
+  onIdeas?: () => void;
   onEdit: (log: FoodLog) => void;
 }) {
   const empty = logs.length === 0;
@@ -287,6 +317,11 @@ function MealBlock({
             )}
           </p>
         </div>
+        {onIdeas ? (
+          <Button variant="ghost" className="min-h-10 px-3 text-xs" onClick={onIdeas}>
+            Ideas
+          </Button>
+        ) : null}
         <Button variant="outline" className="min-h-10 px-3" onClick={onAdd}>
           <PlusIcon className="size-4" />
         </Button>
