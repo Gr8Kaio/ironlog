@@ -8,9 +8,10 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 // ------------------------------------------------------------------ layout
 
 export function Screen({ children, className }: { children: ReactNode; className?: string }) {
-  // pb-36 clears the bottom dock at its tallest: tabs plus the in-progress
-  // row plus the home indicator.
-  return <div className={cx('px-4 pb-36', className)}>{children}</div>;
+  // The dock sits in normal flow below this now, so it needs no clearance
+  // here — only a screen with its own floating footer (the rest timer)
+  // overrides this via className.
+  return <div className={cx('px-4 pb-6', className)}>{children}</div>;
 }
 
 export function TopBar({

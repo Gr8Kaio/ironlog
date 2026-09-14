@@ -121,7 +121,7 @@ function BottomDock() {
   if (location.pathname.startsWith('/workout/')) return null;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg border-t border-line-soft bg-ink/95 pb-safe backdrop-blur-lg">
+    <nav className="shrink-0 border-t border-line-soft bg-ink pb-safe">
       <ActiveWorkoutRow />
       <div className="flex">
         {TABS.map(({ to, label, Icon }) => (
