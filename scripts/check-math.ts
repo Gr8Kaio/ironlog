@@ -5,8 +5,11 @@ import {
 } from '../src/lib/calc.ts';
 import type { WorkoutSet } from '../src/db/types.ts';
 import { weekStart, localDateOf, recentWeeks, daysBetween } from '../src/lib/dates.ts';
-import { MEAL_IDEAS, ideasFor, mealTarget, roundAmount, scaleIdea } from '../src/lib/mealIdeas.ts';
+import { MEAL_IDEAS, ideasFor, mealTarget, roundAmount, scaleIdea, tiltTarget } from '../src/lib/mealIdeas.ts';
 import { buildWeekBudget, dayAllowanceKcal } from '../src/lib/nutrition.ts';
+import {
+  applyOverride, phaseBadge, phasePenalty, trainingContext, type TrainingSession,
+} from '../src/lib/trainingFuel.ts';
 import type { Food, FoodLog, FoodUnit } from '../src/db/types.ts';
 
 let failures = 0;
@@ -130,6 +133,108 @@ eq('earlier days spread over the rest of the week',
 eq('budget off reads the flat target', dayAllowanceKcal(2400, mon, false), 2400);
 eq('an overspent week floors at zero',
   dayAllowanceKcal(2400, buildWeekBudget([mkLog(monday, 17000)], 2400, '2026-09-15'), true), 0);
+
+console.log('--- training phase ---');
+const at = (localDate: string, h: number, m = 0) =>
+  new Date(`${localDate}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).getTime();
+
+// Six Tuesdays in a row at 18:00, so Tuesday is unmistakably a training day.
+const tuesdays = ['2026-08-04', '2026-08-11', '2026-08-18', '2026-08-25', '2026-09-01', '2026-09-08'];
+const habit: TrainingSession[] = tuesdays.map((d) => ({
+  kind: 'workout', localDate: d, startedAt: at(d, 18), finishedAt: at(d, 19, 30), inProgress: false,
+}));
+const tue = '2026-09-15';
+
+eq('a usual training day with nothing logged yet reads as pre-workout',
+  trainingContext(habit, tue, at(tue, 13), tue).phase, 'pre');
+eq('and says how long until the usual hour',
+  trainingContext(habit, tue, at(tue, 16, 30), tue).untilMin, 90);
+eq('long past the usual hour the session did not happen',
+  trainingContext(habit, tue, at(tue, 23), tue).phase, 'rest');
+
+const trainedToday: TrainingSession[] = [
+  ...habit,
+  { kind: 'workout', localDate: tue, startedAt: at(tue, 18), finishedAt: at(tue, 19, 30), inProgress: false },
+];
+eq('an hour after the last set is the recovery meal',
+  trainingContext(trainedToday, tue, at(tue, 20, 30), tue).phase, 'post');
+eq('five hours later it is just a day you trained',
+  trainingContext(trainedToday, tue, at(tue, 23, 59), tue).phase, 'trained');
+eq('a session still open reads as mid-workout',
+  trainingContext(
+    [{ kind: 'workout', localDate: tue, startedAt: at(tue, 18), finishedAt: null, inProgress: true }],
+    tue, at(tue, 18, 40), tue).phase, 'during');
+eq('a run counts as training too',
+  trainingContext(
+    [{ kind: 'run', localDate: tue, startedAt: at(tue, 7), finishedAt: at(tue, 7, 45), inProgress: false }],
+    tue, at(tue, 9), tue).kind, 'run');
+
+// Sundays are never trained in the fixture, so Sunday is a rest day.
+eq('a day you never train is never pre-workout',
+  trainingContext(habit, '2026-09-13', at('2026-09-13', 13), '2026-09-13').phase, 'rest');
+eq('a past day is read from its own logs, never guessed',
+  trainingContext(habit, '2026-09-08', at(tue, 13), tue).phase, 'trained');
+eq('a past day with nothing logged is not pre-workout',
+  trainingContext(habit, '2026-09-09', at(tue, 13), tue).phase, 'rest');
+eq('no history at all says nothing', trainingContext([], tue, at(tue, 13), tue).phase, 'rest');
+
+eq('your word overrides the guess',
+  applyOverride(trainingContext(habit, '2026-09-13', at('2026-09-13', 13), '2026-09-13'), 'pre').phase, 'pre');
+eq('an override is marked as declared',
+  applyOverride(trainingContext(habit, tue, at(tue, 13), tue), 'rest').declared, true);
+eq('auto leaves the reading alone',
+  applyOverride(trainingContext(habit, tue, at(tue, 13), tue), 'auto').phase, 'pre');
+
+eq('a session logged for later today is a plan, not a session you recovered from',
+  trainingContext(
+    [{ kind: 'workout', localDate: tue, startedAt: at(tue, 18), finishedAt: at(tue, 19, 30), inProgress: false }],
+    tue, at(tue, 13), tue).phase, 'pre');
+eq('and it times the wait off the session itself, not the habit',
+  trainingContext(
+    [{ kind: 'workout', localDate: tue, startedAt: at(tue, 18), finishedAt: at(tue, 19, 30), inProgress: false }],
+    tue, at(tue, 17), tue).untilMin, 60);
+eq('a session under way but not flagged open still reads as mid-workout',
+  trainingContext(
+    [{ kind: 'workout', localDate: tue, startedAt: at(tue, 18), finishedAt: at(tue, 19, 30), inProgress: false }],
+    tue, at(tue, 18, 45), tue).phase, 'during');
+
+console.log('--- target tilt ---');
+const flat = { kcal: 700, proteinG: 45, carbsG: 80, fatG: 20 };
+const round = (t: ReturnType<typeof tiltTarget>) =>
+  [Math.round(t.kcal), Math.round(t.proteinG!), Math.round(t.carbsG!), Math.round(t.fatG!)];
+
+eq('before training the same calories lean on carbohydrate', round(tiltTarget(flat, 'pre')), [700, 45, 94, 16]);
+eq('on a rest day they lean away from it', round(tiltTarget(flat, 'rest')), [700, 45, 72, 26]);
+eq('a day you already trained is left alone', round(tiltTarget(flat, 'trained')), [700, 45, 80, 20]);
+eq('protein never moves', tiltTarget(flat, 'pre').proteinG, 45);
+eq('calories never move', tiltTarget(flat, 'rest').kcal, 700);
+eq('a tilt cannot invent macros that were never targeted',
+  tiltTarget({ kcal: 700, proteinG: 45, carbsG: null, fatG: null }, 'pre').carbsG, null);
+eq('a meal whose protein alone fills it is left alone',
+  round(tiltTarget({ kcal: 200, proteinG: 60, carbsG: 10, fatG: 5 }, 'pre')), [200, 60, 10, 5]);
+
+console.log('--- phase fit ---');
+const plate = (kcal: number, proteinG: number, carbsG: number, fatG: number, fiberG = 0) =>
+  ({ kcal, proteinG, carbsG, fatG, fiberG });
+// Rice, banana and whey: high carbohydrate, almost no fat.
+const carby = plate(600, 35, 95, 6, 4);
+// Steak and avocado: the same calories carried by protein and fat.
+const fatty = plate(600, 40, 12, 40, 6);
+
+eq('before training the carbohydrate plate wins',
+  phasePenalty(carby, 'pre') < phasePenalty(fatty, 'pre'), true);
+eq('and the carbohydrate plate takes no penalty at all',
+  Math.round(phasePenalty(carby, 'pre') * 100) / 100, 0);
+eq('after training the same plate still wins',
+  phasePenalty(carby, 'post') < phasePenalty(fatty, 'post'), true);
+eq('on a rest day the fatty, high-protein plate is judged less harshly',
+  phasePenalty(fatty, 'rest') < phasePenalty(fatty, 'pre'), true);
+eq('a plate that suits the moment gets a badge', phaseBadge(carby, 'pre'), 'entra liviano');
+eq('one that does not gets none', phaseBadge(fatty, 'pre'), null);
+// Mince and pasta: a fine pre-workout plate, but not one built for it.
+const middling = plate(980, 65, 116, 26, 7);
+eq('a badge is stricter than a clean penalty', phasePenalty(middling, 'pre'), 0);
+eq('so a merely acceptable plate is not badged', phaseBadge(middling, 'pre'), null);
 
 console.log(failures === 0 ? '\nAll passed.' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

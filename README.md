@@ -12,6 +12,8 @@ Everything is stored in IndexedDB on the device and never leaves it.
   type, and weekly and monthly distance.
 - **Body** — weigh-ins with measurements, charted on their own Progress tab
   with a smoothed trend line and a per-week rate of change.
+- **Fuel** — food logging against a rolling weekly calorie budget, with meal
+  ideas that read what you trained today.
 - **One timeline** — lifts and runs share a colour-coded history, so a week
   reads at a glance.
 - **Your data** — JSON backup and restore, CSV export of every set and every
@@ -116,6 +118,52 @@ Three kinds, all detected automatically: heaviest working set, best estimated
 1RM from a single set, and most working volume for one exercise within a
 session. A record must be *strictly* greater than everything logged before it,
 so repeating your best does not re-award it.
+
+## Fuel
+
+Food logging built around a weekly budget rather than a daily cap. Body fat
+answers to the weekly energy balance, so one big Sunday lunch is a budgeting
+question, not a failed day: today's allowance is the week's remainder spread
+over the days still to come, and `planBigDay()` settles the number *before* the
+asado instead of after it.
+
+The day is split across four meals by a configurable share, and the split
+rebalances as you eat — overshooting lunch shrinks dinner rather than quietly
+blowing the day.
+
+### Training-aware meal ideas
+
+The one thing a general-purpose tracker cannot do: IronLog already knows when
+you lifted and when you ran, so Fuel reads it. `src/lib/trainingFuel.ts` places
+the day in one of five phases — `pre`, `during`, `post`, `trained`, `rest` —
+from the sessions logged for today, falling back to how reliably that weekday
+has been a training day over the last six weeks.
+
+The phase does two things:
+
+- **Tilts the meal's macro target.** Same calories, protein untouched; what
+  moves is the energy after protein, towards carbohydrate before and after a
+  session and away from it on a rest day. It pays for itself — each later meal
+  gets what the daily target has left, so a carb-heavy lunch leaves dinner with
+  less and the day still lands where it should.
+- **Reorders the plates**, with a smaller timing penalty on top of the calorie
+  fit. It breaks ties between plates that already fit; it will not hand you a
+  plate of the wrong size because the timing flatters it.
+
+Three things it refuses to do, all of which would produce confident nonsense:
+
+- Guess a phase for a day that is already over. A past day is read from its own
+  logs only.
+- Treat a session logged for later today as one you have recovered from. Until
+  the clock reaches it, it is a plan.
+- Call a Tuesday pre-workout at eleven at night because Tuesdays are usually
+  leg day. Two hours past the usual start, the session did not happen.
+
+The read is right most days and wrong on exactly the days you care about, so
+the card on the Fuel screen is a button: **Voy a entrenar · Ya entrené ·
+Descanso** overrides it. The choice is per day and lives in `localStorage` —
+it is a note about one day, it never needs to reach another device, and it has
+no business in a backup.
 
 ## Backups
 

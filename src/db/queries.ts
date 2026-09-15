@@ -13,7 +13,8 @@ import type {
   WorkoutSet,
 } from './types';
 import { bestE1RM, epley1RM, isWorkingSet, setLoad, setVolume, topSet, workoutVolume } from '../lib/calc';
-import { addDaysToLocalDate, localDateOf, monthKey, recentWeeks, weekStart } from '../lib/dates';
+import { addDaysToLocalDate, localDateOf, monthKey, recentWeeks, todayLocalDate, weekStart } from '../lib/dates';
+import type { TrainingSession } from '../lib/trainingFuel';
 
 // ------------------------------------------------------------ history feed
 
@@ -513,6 +514,42 @@ export async function touchFood(foodId: string): Promise<void> {
   const food = await db.foods.get(foodId);
   if (!food) return;
   await db.foods.put({ ...food, lastUsedAt: Date.now(), useCount: food.useCount + 1 });
+}
+
+/**
+ * Every lift and run of the last few weeks, flattened to what Fuel needs to
+ * tell a pre-workout meal from a recovery one.
+ *
+ * Unfinished sessions are kept, unlike in the history feed: a session still
+ * open is exactly the case where "you are training right now" is the answer.
+ * A run has no finish time of its own, so it is derived from its duration.
+ */
+export async function getTrainingSessions(
+  weeks = 8,
+  from = todayLocalDate(),
+): Promise<TrainingSession[]> {
+  const since = addDaysToLocalDate(from, -7 * weeks);
+  const [workouts, runs] = await Promise.all([
+    db.workouts.where('localDate').aboveOrEqual(since).toArray(),
+    db.runs.where('localDate').aboveOrEqual(since).toArray(),
+  ]);
+
+  return [
+    ...workouts.map((w) => ({
+      kind: 'workout' as const,
+      localDate: w.localDate,
+      startedAt: w.startedAt,
+      finishedAt: w.finishedAt ?? null,
+      inProgress: w.status === 'in_progress',
+    })),
+    ...runs.map((r) => ({
+      kind: 'run' as const,
+      localDate: r.localDate,
+      startedAt: r.startedAt,
+      finishedAt: r.startedAt + r.durationSec * 1000,
+      inProgress: false,
+    })),
+  ];
 }
 
 export async function getWaterForDate(localDate: string): Promise<WaterLog[]> {

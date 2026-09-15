@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSettings } from '../db/db';
 import type { FoodLog, MealSlot } from '../db/types';
-import { getLogsForDate, getLogsForWeekOf } from '../db/queries';
+import { getLogsForDate, getLogsForWeekOf, getTrainingSessions } from '../db/queries';
 import {
   MEAL_LABEL,
   buildWeekBudget,
@@ -18,10 +18,16 @@ import {
 } from '../lib/nutrition';
 import { addDaysToLocalDate, formatDayLabel, todayLocalDate } from '../lib/dates';
 import { mealTarget } from '../lib/mealIdeas';
+import {
+  applyOverride,
+  trainingContext,
+  type PhaseOverride,
+} from '../lib/trainingFuel';
 import { AddFoodSheet } from '../components/AddFoodSheet';
 import { MealIdeasSheet } from '../components/MealIdeasSheet';
 import { EditLogSheet } from '../components/EditLogSheet';
 import { WaterCard } from '../components/WaterCard';
+import { TrainingFuelCard } from '../components/TrainingFuelCard';
 import {
   Button,
   Card,
@@ -54,6 +60,26 @@ export function FuelToday() {
   const settings = useLiveQuery(() => getSettings(), [], undefined);
   const logs = useLiveQuery(() => getLogsForDate(date), [date], undefined);
   const weekLogs = useLiveQuery(() => getLogsForWeekOf(date), [date], undefined);
+  const sessions = useLiveQuery(() => getTrainingSessions(8, today), [today], undefined);
+
+  // "Hace 40 min" has to stay true while the screen sits open: the recovery
+  // window turns over on the clock, not on a database write.
+  const [tick, setTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setTick(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Keyed by day, so walking to another date cannot carry over what you
+  // declared about this one. The stored value is the source of truth; this
+  // only exists to re-render when it changes.
+  const [declared, setDeclared] = useState<Record<string, PhaseOverride>>({});
+  const phaseOverride = declared[date] ?? readOverride(date);
+
+  const changeOverride = (next: PhaseOverride) => {
+    writeOverride(date, next);
+    setDeclared((prev) => ({ ...prev, [date]: next }));
+  };
 
   const goto = (next: string) =>
     navigate(next === today ? '/fuel' : `/fuel/day/${next}`, { replace: true });
@@ -80,7 +106,7 @@ export function FuelToday() {
     </div>
   );
 
-  if (!settings || !logs || !weekLogs) {
+  if (!settings || !logs || !weekLogs || !sessions) {
     return (
       <Screen>
         <TopBar title="Fuel" subtitle={formatDayLabel(date)} right={dayNav} />
@@ -100,6 +126,8 @@ export function FuelToday() {
     : target;
   const split = normaliseSplit(settings.mealSplit, MEAL_ORDER);
   const plans = planMeals(allowance, split, logs, MEAL_ORDER);
+
+  const ctx = applyOverride(trainingContext(sessions, date, tick, today), phaseOverride);
 
   const eaten = totalMacros(logs);
   const remaining = allowance - eaten.kcal;
@@ -184,6 +212,9 @@ export function FuelToday() {
         ) : null}
       </Card>
 
+      {/* Training context ----------------------------------------------- */}
+      <TrainingFuelCard ctx={ctx} override={phaseOverride} onOverride={changeOverride} />
+
       {/* Water ---------------------------------------------------------- */}
       <WaterCard
         localDate={date}
@@ -239,6 +270,7 @@ export function FuelToday() {
       <MealIdeasSheet
         meal={ideasMeal}
         target={ideasTarget}
+        ctx={ctx}
         localDate={date}
         onClose={() => setIdeasMeal(null)}
       />
@@ -383,6 +415,32 @@ function SetupPrompt({ onOpen }: { onOpen: () => void }) {
       />
     </Screen>
   );
+}
+
+/**
+ * The declared phase lives in localStorage rather than the database: it is a
+ * note about one day, it never needs to reach another device, and it must not
+ * bloat a backup with a row per day. A blocked storage (private window, iOS
+ * lockdown) just means the automatic read stands.
+ */
+const OVERRIDE_KEY = 'ironlog.fuelPhase';
+
+function readOverride(date: string): PhaseOverride {
+  try {
+    const raw = localStorage.getItem(`${OVERRIDE_KEY}.${date}`);
+    return raw === 'pre' || raw === 'post' || raw === 'rest' ? raw : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
+function writeOverride(date: string, value: PhaseOverride): void {
+  try {
+    if (value === 'auto') localStorage.removeItem(`${OVERRIDE_KEY}.${date}`);
+    else localStorage.setItem(`${OVERRIDE_KEY}.${date}`, value);
+  } catch {
+    // Nothing to do: the automatic read is a fine fallback.
+  }
 }
 
 export { MEAL_ORDER };

@@ -11,6 +11,7 @@
  */
 import type { Food, FoodUnit, MealSlot } from '../db/types';
 import type { Macros } from './nutrition';
+import { phasePenalty, type TrainingPhase } from './trainingFuel.ts';
 
 export interface IdeaItem {
   /** A seed food's `seedSlug`, so ideas follow the library's own values. */
@@ -63,6 +64,42 @@ export const MEAL_IDEAS: MealIdea[] = [
       { slug: 'avena', amount: 40, scales: true },
       { slug: 'manzana', amount: 1 },
       { slug: 'almendras', amount: 15 },
+    ],
+  },
+
+  {
+    id: 'avena-miel-batido',
+    meal: 'breakfast',
+    name: 'Avena con miel y batido',
+    why: 'Casi todo carbohidrato y muy poca grasa: se digiere rápido y no te pesa al entrenar.',
+    items: [
+      { slug: 'avena', amount: 60, scales: true },
+      { slug: 'miel', amount: 20 },
+      { slug: 'batido-proteina-leche-descremada', amount: 1 },
+    ],
+  },
+  {
+    id: 'tostadas-banana-batido',
+    meal: 'breakfast',
+    name: 'Tostadas con banana, miel y batido',
+    why: 'Carbohidrato rápido con proteína al lado: repone y repara sin grasa que frene la digestión.',
+    items: [
+      { slug: 'pan-integral', amount: 3, scales: true },
+      { slug: 'banana', amount: 1 },
+      { slug: 'miel', amount: 15 },
+      { slug: 'batido-proteina-leche-descremada', amount: 1 },
+    ],
+  },
+  {
+    id: 'ricota-avena-nueces',
+    meal: 'breakfast',
+    name: 'Ricota semi con avena, manzana y nueces',
+    why: 'Mucha proteína y poco carbohidrato: sostiene la mañana en un día sin entrenar.',
+    items: [
+      { slug: 'ricota-semi', amount: 150, scales: true },
+      { slug: 'avena', amount: 30, scales: true },
+      { slug: 'manzana', amount: 1 },
+      { slug: 'nueces', amount: 15 },
     ],
   },
 
@@ -120,6 +157,43 @@ export const MEAL_IDEAS: MealIdea[] = [
     ],
   },
 
+  {
+    id: 'pollo-arroz-zanahoria',
+    meal: 'lunch',
+    name: 'Pollo con arroz y zanahoria, sin aceite',
+    why: 'Plato liviano y alto en carbohidrato: comés dos horas antes y entrenás sin sentirlo.',
+    items: [
+      { slug: 'pechuga-pollo', amount: 150, scales: true },
+      { slug: 'arroz', amount: 120, scales: true },
+      { slug: 'zanahoria', amount: 100 },
+    ],
+  },
+  {
+    id: 'atun-arroz-tomate',
+    meal: 'lunch',
+    name: 'Arroz con atún al agua y tomate',
+    why: 'Proteína y carbohidrato sin casi grasa: la combinación que repone glucógeno más rápido.',
+    items: [
+      { slug: 'atun-agua', amount: 2, scales: true },
+      { slug: 'arroz', amount: 110, scales: true },
+      { slug: 'tomate', amount: 150 },
+    ],
+  },
+  {
+    id: 'garbanzos-pollo-ensalada',
+    meal: 'lunch',
+    name: 'Ensalada de garbanzos con pollo',
+    why: 'Toda la fibra del día en un plato: llena mucho para las calorías que trae.',
+    items: [
+      { slug: 'garbanzos', amount: 60, scales: true },
+      { slug: 'pechuga-pollo', amount: 150, scales: true },
+      { slug: 'lechuga', amount: 80 },
+      { slug: 'tomate', amount: 150 },
+      { slug: 'zanahoria', amount: 80 },
+      { slug: 'aceite-oliva', amount: 10 },
+    ],
+  },
+
   // -------------------------------------------------------------------- snack
   {
     id: 'batido-banana',
@@ -153,6 +227,29 @@ export const MEAL_IDEAS: MealIdea[] = [
       { slug: 'jamon-cocido', amount: 2, scales: true },
       { slug: 'queso-untable-light', amount: 30 },
       { slug: 'tomate', amount: 100 },
+    ],
+  },
+
+  {
+    id: 'banana-miel-batido',
+    meal: 'snack',
+    name: 'Banana con miel y batido',
+    why: 'Azúcar de fácil digestión y proteína: lo que entra bien media hora antes de la barra.',
+    items: [
+      { slug: 'banana', amount: 1, scales: true },
+      { slug: 'miel', amount: 15 },
+      { slug: 'batido-proteina-leche-descremada', amount: 1 },
+    ],
+  },
+  {
+    id: 'batido-avena-banana',
+    meal: 'snack',
+    name: 'Batido con avena y banana',
+    why: 'Proteína y carbohidrato líquidos: se toman apenas terminás, cuando comer sólido no entra.',
+    items: [
+      { slug: 'batido-proteina-leche-protein', amount: 1 },
+      { slug: 'avena', amount: 40, scales: true },
+      { slug: 'banana', amount: 1 },
     ],
   },
 
@@ -193,6 +290,31 @@ export const MEAL_IDEAS: MealIdea[] = [
       { slug: 'tomate', amount: 150 },
       { slug: 'lechuga', amount: 80 },
       { slug: 'aceite-oliva', amount: 10 },
+    ],
+  },
+  {
+    id: 'pollo-horno-papa-ensalada',
+    meal: 'dinner',
+    name: 'Pollo al horno con papa y ensalada',
+    why: 'Proteína y carbohidrato en cantidad para cerrar el día en que entrenaste.',
+    items: [
+      { slug: 'pollo-horno', amount: 180, scales: true },
+      { slug: 'papa', amount: 250, scales: true },
+      { slug: 'tomate', amount: 150 },
+      { slug: 'lechuga', amount: 80 },
+    ],
+  },
+  {
+    id: 'tortilla-brocoli-ensalada',
+    meal: 'dinner',
+    name: 'Tortilla de huevo con brócoli y ensalada',
+    why: 'Mucha proteína y mucha verdura con poco carbohidrato: llena sin gastar el día.',
+    items: [
+      { slug: 'huevo', amount: 3, scales: true },
+      { slug: 'brocoli', amount: 200 },
+      { slug: 'lechuga', amount: 80 },
+      { slug: 'tomate', amount: 150 },
+      { slug: 'aceite-oliva', amount: 5 },
     ],
   },
 ];
@@ -308,11 +430,58 @@ export function mealTarget(
 }
 
 /**
+ * The same calories, in the shape the moment calls for.
+ *
+ * Protein is left exactly where it was — it is the macro with a floor, and no
+ * amount of training moves it. What gets redistributed is the energy left
+ * after protein: towards carbohydrate before and after a session, away from it
+ * on a day with nothing to fuel.
+ *
+ * The tilt is partial on purpose. Your configured macro targets are still the
+ * plan; this bends one meal within the day rather than replacing them. And it
+ * pays for itself: `mealTarget` hands each later meal what the daily target
+ * has left, so a lunch tilted towards carbohydrate leaves dinner with less of
+ * it and the day still lands where it should.
+ */
+const CARB_SHARE: Partial<Record<TrainingPhase, number>> = {
+  pre: 0.78,
+  during: 0.8,
+  post: 0.72,
+  rest: 0.5,
+};
+
+/** How far towards the phase's ideal shape a meal is pulled, 0-1. */
+const TILT = 0.6;
+
+export function tiltTarget(t: MealTarget, phase?: TrainingPhase): MealTarget {
+  const ideal = phase === undefined ? undefined : CARB_SHARE[phase];
+  if (ideal === undefined || t.carbsG === null || t.fatG === null) return t;
+
+  const afterProtein = t.kcal - (t.proteinG ?? 0) * 4;
+  if (afterProtein <= 0) return t;
+
+  const plannedEnergy = t.carbsG * 4 + t.fatG * 9;
+  if (plannedEnergy <= 0) return t;
+
+  const current = (t.carbsG * 4) / plannedEnergy;
+  const share = current + (ideal - current) * TILT;
+  return {
+    ...t,
+    carbsG: (afterProtein * share) / 4,
+    fatG: (afterProtein * (1 - share)) / 9,
+  };
+}
+
+/**
  * How far a plate lands from the target. Protein counts most, and running
  * short of it costs far more than going over: in a deficit, extra protein is
  * the macro that protects muscle.
+ *
+ * `phase` adds a smaller timing term on top — carbohydrate before the session,
+ * protein and carbohydrate after it. It breaks ties between plates that
+ * already fit; it never outweighs getting the size right.
  */
-export function fitScore(m: Macros, t: MealTarget): number {
+export function fitScore(m: Macros, t: MealTarget, phase?: TrainingPhase): number {
   const rel = (a: number, b: number, floor: number) => Math.abs(a - b) / Math.max(b, floor);
   let score = rel(m.kcal, t.kcal, 100);
   if (t.proteinG !== null) {
@@ -321,11 +490,17 @@ export function fitScore(m: Macros, t: MealTarget): number {
   }
   if (t.carbsG !== null) score += 0.5 * rel(m.carbsG, t.carbsG, 10);
   if (t.fatG !== null) score += 0.5 * rel(m.fatG, t.fatG, 5);
+  if (phase) score += phasePenalty(m, phase);
   return score;
 }
 
 /** Every idea for the meal the library can build, best fit first. */
-export function ideasFor(meal: MealSlot, foods: Food[], target: MealTarget): ScaledIdea[] {
+export function ideasFor(
+  meal: MealSlot,
+  foods: Food[],
+  target: MealTarget,
+  phase?: TrainingPhase,
+): ScaledIdea[] {
   const bySlug = new Map<string, Food>();
   for (const f of foods) if (f.seedSlug && !f.isArchived) bySlug.set(f.seedSlug, f);
 
@@ -333,7 +508,7 @@ export function ideasFor(meal: MealSlot, foods: Food[], target: MealTarget): Sca
   for (const idea of MEAL_IDEAS) {
     if (idea.meal !== meal) continue;
     const scaled = scaleIdea(idea, bySlug, target.kcal);
-    if (scaled) out.push({ ...scaled, score: fitScore(scaled.macros, target) });
+    if (scaled) out.push({ ...scaled, score: fitScore(scaled.macros, target, phase) });
   }
   return out.sort((a, b) => a.score - b.score);
 }
@@ -342,7 +517,7 @@ const BASE_TIP: Record<MealSlot, string> = {
   breakfast:
     'Proteína desde el desayuno: repartida en el día le rinde más al músculo que juntada a la noche.',
   lunch: 'Medio plato de verdura, un cuarto de proteína y un cuarto de carbohidrato.',
-  snack: 'Si entrenás a la tarde, acá va el carbohidrato; si no, fruta y proteína.',
+  snack: 'Entre horas no es un premio: que sume proteína o fibra, no sólo calorías.',
   dinner: 'Verdura en cantidad: llena, suma fibra y casi no suma calorías.',
 };
 

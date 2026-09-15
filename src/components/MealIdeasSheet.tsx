@@ -3,22 +3,36 @@ import { db, newId } from '../db/db';
 import type { FoodLog, MealSlot } from '../db/types';
 import { touchFood } from '../db/queries';
 import { MEAL_LABEL, fmtAmount, fmtGrams, fmtKcal } from '../lib/nutrition';
-import { ideasFor, mealTips, type MealTarget, type ScaledIdea } from '../lib/mealIdeas';
+import { ideasFor, mealTips, tiltTarget, type MealTarget, type ScaledIdea } from '../lib/mealIdeas';
+import { phaseBadge, phaseCopy, type TrainingContext } from '../lib/trainingFuel';
 import { Button, Card, Chip, Sheet } from './ui';
 
 export function MealIdeasSheet({
   meal,
   target,
+  ctx,
   localDate,
   onClose,
 }: {
   meal: MealSlot | null;
   target: MealTarget | null;
+  /** Where the day sits relative to training. Orders the plates and heads the tips. */
+  ctx: TrainingContext;
   localDate: string;
   onClose: () => void;
 }) {
   const foods = useLiveQuery(() => db.foods.toArray(), [], undefined);
-  const ideas = meal && target && foods ? ideasFor(meal, foods, target) : [];
+  // Everything below reads the tilted target: the plates are ranked against the
+  // shape the moment calls for, and the header shows the same number, so the
+  // ordering is never something that happens off-screen.
+  const aimed = target ? tiltTarget(target, ctx.phase) : null;
+  const ideas = meal && aimed && foods ? ideasFor(meal, foods, aimed, ctx.phase) : [];
+  const tilted =
+    target !== null &&
+    aimed !== null &&
+    aimed.carbsG !== null &&
+    target.carbsG !== null &&
+    Math.abs(aimed.carbsG - target.carbsG) >= 1;
 
   async function log(idea: ScaledIdea) {
     if (!meal) return;
@@ -51,23 +65,35 @@ export function MealIdeasSheet({
       onClose={onClose}
       title={meal ? `Ideas para ${MEAL_LABEL[meal].toLowerCase()}` : 'Ideas'}
     >
-      {meal && target ? (
+      {meal && aimed ? (
         <div className="space-y-3">
           <div className="rounded-xl bg-raised px-3 py-2.5">
             <p className="text-[10px] font-semibold tracking-widest text-faint uppercase">
               Objetivo de esta comida
             </p>
             <p className="tabular mt-0.5 text-sm">
-              <span className="text-lg font-semibold text-fuel">{fmtKcal(target.kcal)}</span>
+              <span className="text-lg font-semibold text-fuel">{fmtKcal(aimed.kcal)}</span>
               <span className="text-xs text-muted"> kcal</span>
-              {target.proteinG !== null ? ` · P ${fmtGrams(target.proteinG)}` : ''}
-              {target.carbsG !== null ? ` · C ${fmtGrams(target.carbsG)}` : ''}
-              {target.fatG !== null ? ` · G ${fmtGrams(target.fatG)}` : ''}
+              {aimed.proteinG !== null ? ` · P ${fmtGrams(aimed.proteinG)}` : ''}
+              {aimed.carbsG !== null ? ` · C ${fmtGrams(aimed.carbsG)}` : ''}
+              {aimed.fatG !== null ? ` · G ${fmtGrams(aimed.fatG)}` : ''}
             </p>
+            {tilted ? (
+              <p className="mt-1 text-[11px] leading-snug text-faint">
+                Mismas calorías, repartidas para el momento: lo que le corras al carbohidrato acá se
+                lo descuenta a las comidas que siguen.
+              </p>
+            ) : null}
           </div>
 
           <ul className="space-y-1.5">
-            {mealTips(meal, target).map((tip) => (
+            {/* The training tip goes first: it is the framing the rest of the
+                advice sits inside, not one more thing to bear in mind. */}
+            <li className="rounded-lg bg-iron/10 px-2.5 py-2 text-[12px] leading-snug text-iron">
+              <span className="font-semibold">{phaseCopy(ctx).title}. </span>
+              {phaseCopy(ctx).tip}
+            </li>
+            {mealTips(meal, aimed).map((tip) => (
               <li key={tip} className="rounded-lg bg-fuel/10 px-2.5 py-2 text-[12px] leading-snug text-fuel">
                 {tip}
               </li>
@@ -76,9 +102,10 @@ export function MealIdeasSheet({
 
           {ideas.map((idea, index) => (
             <Card key={idea.idea.id} className="p-3">
-              <div className="flex items-start gap-2">
+              <div className="flex flex-wrap items-start gap-2">
                 <p className="min-w-0 flex-1 text-sm font-medium">{idea.idea.name}</p>
                 {index === 0 ? <Chip tone="fuel">mejor ajuste</Chip> : null}
+                {badgeOf(idea, ctx) ? <Chip tone="iron">{badgeOf(idea, ctx)}</Chip> : null}
               </div>
               <p className="mt-0.5 text-[11px] leading-snug text-faint">{idea.idea.why}</p>
 
@@ -116,4 +143,9 @@ export function MealIdeasSheet({
       ) : null}
     </Sheet>
   );
+}
+
+/** Why this plate suits the moment, when it does. */
+function badgeOf(idea: ScaledIdea, ctx: TrainingContext): string | null {
+  return phaseBadge(idea.macros, ctx.phase);
 }
