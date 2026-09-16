@@ -386,22 +386,18 @@ export const SEED_FOODS: SeedFood[] = [
     kcal: 292.4, proteinG: 33.4, carbsG: 17.7, fatG: 8.7, fiberG: 0,
     portions: [],
     source: 'Receta estimada: igual que la frita pero con 2 g de aceite en lugar de 10.' },
-  { slug: 'milanesa-cerdo-frita', name: 'Milanesa de cerdo (frita)', refAmount: 1, refUnit: 'unit',
-    kcal: 423.2, proteinG: 31.2, carbsG: 17.7, fatG: 24.5, fiberG: 0,
-    portions: [],
-    source: 'Receta estimada: 120 g de costeleta de cerdo cruda sin hueso + 25 g de pan rallado + 25 g de huevo + 10 g de aceite absorbido. El aceite es la variable grande: ajustalo.' },
-  { slug: 'milanesa-cerdo-horno', name: 'Milanesa de cerdo (al horno)', refAmount: 1, refUnit: 'unit',
-    kcal: 352.5, proteinG: 31.2, carbsG: 17.7, fatG: 16.5, fiberG: 0,
-    portions: [],
-    source: 'Receta estimada: igual que la frita pero con 2 g de aceite en lugar de 10.' },
-  { slug: 'milanesa-cerdo-frita-g', name: 'Milanesa de cerdo (frita, por peso)', refAmount: 100, refUnit: 'g',
+  // La milanesa de cerdo se come tanto contada como pesada en la balanza, asi
+  // que va como alimento de 100 g con una porcion "unidad" de lo que pesa ya
+  // cocida: el sheet ofrece Por peso / Por unidad, igual que con los frutos
+  // secos, en vez de duplicar la fila.
+  { slug: 'milanesa-cerdo-frita', name: 'Milanesa de cerdo (frita)', refAmount: 100, refUnit: 'g',
     kcal: 282.1, proteinG: 20.8, carbsG: 11.8, fatG: 16.3, fiberG: 0,
-    portions: [{ label: 'milanesa', amount: 150 }],
-    source: 'La misma receta que Milanesa de cerdo (frita), dividida por los ~150 g que pesa ya frita (la carne pierde ~25% de agua). Para pesar la milanesa en la balanza en vez de contar unidades.' },
-  { slug: 'milanesa-cerdo-horno-g', name: 'Milanesa de cerdo (al horno, por peso)', refAmount: 100, refUnit: 'g',
+    portions: [{ label: 'unidad', amount: 150 }],
+    source: 'Receta estimada: 120 g de costeleta de cerdo cruda sin hueso + 25 g de pan rallado + 25 g de huevo + 10 g de aceite absorbido, dividido por los ~150 g que pesa ya frita (la carne pierde ~25% de agua). El aceite es la variable grande: ajustalo.' },
+  { slug: 'milanesa-cerdo-horno', name: 'Milanesa de cerdo (al horno)', refAmount: 100, refUnit: 'g',
     kcal: 248.2, proteinG: 22, carbsG: 12.5, fatG: 11.6, fiberG: 0,
-    portions: [{ label: 'milanesa', amount: 142 }],
-    source: 'La misma receta que Milanesa de cerdo (al horno), dividida por los ~142 g que pesa ya cocida. Para pesar la milanesa en la balanza en vez de contar unidades.' },
+    portions: [{ label: 'unidad', amount: 142 }],
+    source: 'Receta estimada: igual que la frita pero con 2 g de aceite en lugar de 10, dividido por los ~142 g que pesa ya cocida.' },
   { slug: 'empanada-carne', name: 'Empanada de carne (al horno)', refAmount: 1, refUnit: 'unit',
     kcal: 269.4, proteinG: 11.4, carbsG: 24.4, fatG: 13.5, fiberG: 0,
     portions: [],
@@ -436,9 +432,21 @@ export function seedFoodToFood(seed: SeedFood, now: number): Food {
   };
 }
 
+/**
+ * Slugs que se dejaron de publicar. Una fila retirada no desaparece sola de una
+ * biblioteca ya sembrada, asi que se archiva (no se borra: si tiene logs
+ * viejos, el historial los sigue nombrando). Si la editaste vos, se respeta.
+ */
+const RETIRED_SLUGS = [
+  // Reemplazadas por las de por unidad, que ahora se cargan por peso tambien.
+  'milanesa-cerdo-frita-g',
+  'milanesa-cerdo-horno-g',
+];
+
 export interface SeedReport {
   added: number;
   refreshed: number;
+  retired: number;
 }
 
 let seedingFoods: Promise<SeedReport> | null = null;
@@ -503,7 +511,11 @@ async function runSeedFoods(): Promise<SeedReport> {
     if (moved) refreshed.push(next);
   }
 
-  const writes = [...missing.map((seed) => seedFoodToFood(seed, now)), ...refreshed];
+  const retired = RETIRED_SLUGS.map((slug) => bySlug.get(slug)).filter(
+    (row): row is Food => !!row && !row.isArchived && row.updatedAt === row.createdAt,
+  ).map((row) => ({ ...row, isArchived: true }));
+
+  const writes = [...missing.map((seed) => seedFoodToFood(seed, now)), ...refreshed, ...retired];
   if (writes.length > 0) await db.foods.bulkPut(writes);
-  return { added: missing.length, refreshed: refreshed.length };
+  return { added: missing.length, refreshed: refreshed.length, retired: retired.length };
 }
