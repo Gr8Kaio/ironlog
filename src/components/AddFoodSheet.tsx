@@ -7,6 +7,12 @@ import { MEAL_LABEL, fmtGrams, fmtKcal, macrosFor, matchesFood } from '../lib/nu
 import { Button, Card, Chip, Field, Segmented, Sheet, TextInput, cx } from '../components/ui';
 import { FlameIcon } from './icons';
 
+/**
+ * A partir de este peso, una "unidad" es algo entero que se cuenta de a uno
+ * (una banana, una milanesa) en vez de un grano que se pesa de a puñados.
+ */
+const COUNTED_WHOLE_G = 40;
+
 const num = (s: string): number => {
   const n = Number(s.replace(',', '.'));
   return Number.isFinite(n) ? n : 0;
@@ -197,11 +203,17 @@ function AmountStep({
   const [amount, setAmount] = useState(() => String(food.portions[0]?.amount ?? food.refAmount));
   const [estimated, setEstimated] = useState(false);
   // A weighed food with a "unidad" portion can also be counted: 15 almendras
-  // instead of working out 18 g by hand. The log still stores grams.
+  // instead of working out 18 g by hand, o una banana sin pasar por la
+  // balanza. The log still stores grams.
   const unitPortion =
     food.refUnit === 'unit' ? undefined : food.portions.find((p) => p.label === 'unidad');
-  const [byCount, setByCount] = useState(false);
-  const [count, setCount] = useState('10');
+  // Una unidad de 118 g es una fruta o una milanesa: se cuenta de a una, y es
+  // asi como se carga casi siempre. Una de 1,2 g es una almendra: se pesa, y
+  // contarlas empieza en la decena. El peso de la porcion separa los dos casos
+  // sin tener que marcar cada alimento a mano.
+  const countable = unitPortion !== undefined && unitPortion.amount >= COUNTED_WHOLE_G;
+  const [byCount, setByCount] = useState(countable);
+  const [count, setCount] = useState(countable ? '1' : '10');
 
   const value = byCount && unitPortion ? num(count) * unitPortion.amount : num(amount);
   const macros = macrosFor(food, value);
@@ -256,7 +268,7 @@ function AmountStep({
           <CountPicker
             value={num(count)}
             onChange={(n) => setCount(String(n))}
-            options={[5, 10, 15, 20, 30]}
+            options={countable ? undefined : [5, 10, 15, 20, 30]}
           />
           <Field
             label="Cuántas unidades"

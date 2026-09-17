@@ -119,14 +119,18 @@ export const SEED_FOODS: SeedFood[] = [
     kcal: 86, proteinG: 1.6, carbsG: 20.1, fatG: 0.1, fiberG: 3,
     portions: [{ label: 'mediana', amount: 130 }],
     source: 'USDA SR Legacy #168482 - Sweet potato, raw, unprepared (Includes foods for USDA\'s Food Distribu' },
-  { slug: 'banana', name: 'Banana', refAmount: 1, refUnit: 'unit',
-    kcal: 105, proteinG: 1.3, carbsG: 27, fatG: 0.4, fiberG: 3.1,
-    portions: [],
-    source: 'USDA SR Legacy #173944 - Bananas, raw | 1 unidad = 118 g' },
-  { slug: 'manzana', name: 'Manzana', refAmount: 1, refUnit: 'unit',
-    kcal: 103.7, proteinG: 0.5, carbsG: 24.8, fatG: 0.3, fiberG: 4.4,
-    portions: [],
-    source: 'USDA SR Legacy #168202 - Apples, raw, golden delicious, with skin | 1 unidad = 182 g' },
+  // La fruta se come contada ("una banana") y pesada (la que quedo cortada, la
+  // mitad que sobro, la balanza en la cocina). Va como alimento de 100 g con
+  // una porcion "unidad" de lo que pesa una mediana: el sheet ofrece Por peso
+  // / Por unidad, igual que con la milanesa de cerdo y los frutos secos.
+  { slug: 'banana', name: 'Banana', refAmount: 100, refUnit: 'g',
+    kcal: 89, proteinG: 1.1, carbsG: 22.8, fatG: 0.3, fiberG: 2.6,
+    portions: [{ label: 'unidad', amount: 118 }, { label: 'grande', amount: 136 }],
+    source: 'USDA SR Legacy #173944 - Bananas, raw | 1 unidad mediana = 118 g, grande = 136 g' },
+  { slug: 'manzana', name: 'Manzana', refAmount: 100, refUnit: 'g',
+    kcal: 57, proteinG: 0.3, carbsG: 13.6, fatG: 0.2, fiberG: 2.4,
+    portions: [{ label: 'unidad', amount: 182 }, { label: 'media', amount: 91 }],
+    source: 'USDA SR Legacy #168202 - Apples, raw, golden delicious, with skin | 1 unidad mediana = 182 g' },
   { slug: 'palta', name: 'Palta', refAmount: 100, refUnit: 'g',
     kcal: 160, proteinG: 2, carbsG: 8.5, fatG: 14.7, fiberG: 6.7,
     portions: [{ label: 'media', amount: 100 }, { label: 'entera', amount: 200 }],

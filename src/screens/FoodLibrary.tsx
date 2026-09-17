@@ -413,6 +413,13 @@ function PortionEditor({
       <p className="mb-2 text-[11px] leading-snug text-faint">
         Atajos para no pesar todo: "pote", "rebanada", "plato". Se guardan en {unitWord}.
       </p>
+      {unitWord !== 'unidad' ? (
+        <p className="mb-2 text-[11px] leading-snug text-faint">
+          Una porción llamada <span className="text-muted">unidad</span> hace algo más: al cargarlo
+          vas a poder elegir por peso o por unidad. Es lo que conviene para la fruta — 1 banana o
+          los 60 g que sobraron.
+        </p>
+      ) : null}
 
       {portions.length > 0 ? (
         <div className="mb-2 flex flex-wrap gap-1.5">

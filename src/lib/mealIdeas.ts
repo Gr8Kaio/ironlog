@@ -37,7 +37,7 @@ export const MEAL_IDEAS: MealIdea[] = [
     why: 'Carbohidrato lento y más de 30 g de proteína: llegás al almuerzo sin hambre.',
     items: [
       { slug: 'avena', amount: 50, scales: true },
-      { slug: 'banana', amount: 1 },
+      { slug: 'banana', amount: 120 },
       { slug: 'batido-proteina-leche-descremada', amount: 1 },
     ],
   },
@@ -62,7 +62,7 @@ export const MEAL_IDEAS: MealIdea[] = [
       { slug: 'yogur-griego-natural', amount: 1 },
       { slug: 'proteina-star', amount: 15 },
       { slug: 'avena', amount: 40, scales: true },
-      { slug: 'manzana', amount: 1 },
+      { slug: 'manzana', amount: 180 },
       { slug: 'almendras', amount: 15 },
     ],
   },
@@ -85,7 +85,7 @@ export const MEAL_IDEAS: MealIdea[] = [
     why: 'Carbohidrato rápido con proteína al lado: repone y repara sin grasa que frene la digestión.',
     items: [
       { slug: 'pan-integral', amount: 3, scales: true },
-      { slug: 'banana', amount: 1 },
+      { slug: 'banana', amount: 120 },
       { slug: 'miel', amount: 15 },
       { slug: 'batido-proteina-leche-descremada', amount: 1 },
     ],
@@ -98,7 +98,7 @@ export const MEAL_IDEAS: MealIdea[] = [
     items: [
       { slug: 'ricota-semi', amount: 150, scales: true },
       { slug: 'avena', amount: 30, scales: true },
-      { slug: 'manzana', amount: 1 },
+      { slug: 'manzana', amount: 180 },
       { slug: 'nueces', amount: 15 },
     ],
   },
@@ -202,7 +202,7 @@ export const MEAL_IDEAS: MealIdea[] = [
     why: 'Rápido y con 35 g de proteína: ideal cerca del entrenamiento.',
     items: [
       { slug: 'batido-proteina-leche-protein', amount: 1 },
-      { slug: 'banana', amount: 1, scales: true },
+      { slug: 'banana', amount: 120, scales: true },
     ],
   },
   {
@@ -213,7 +213,7 @@ export const MEAL_IDEAS: MealIdea[] = [
     items: [
       { slug: 'yogur-firme-descremado', amount: 1 },
       { slug: 'proteina-star', amount: 15, scales: true },
-      { slug: 'manzana', amount: 1 },
+      { slug: 'manzana', amount: 180 },
       { slug: 'almendras', amount: 20 },
     ],
   },
@@ -236,7 +236,7 @@ export const MEAL_IDEAS: MealIdea[] = [
     name: 'Banana con miel y batido',
     why: 'Azúcar de fácil digestión y proteína: lo que entra bien media hora antes de la barra.',
     items: [
-      { slug: 'banana', amount: 1, scales: true },
+      { slug: 'banana', amount: 120, scales: true },
       { slug: 'miel', amount: 15 },
       { slug: 'batido-proteina-leche-descremada', amount: 1 },
     ],
@@ -249,7 +249,7 @@ export const MEAL_IDEAS: MealIdea[] = [
     items: [
       { slug: 'batido-proteina-leche-protein', amount: 1 },
       { slug: 'avena', amount: 40, scales: true },
-      { slug: 'banana', amount: 1 },
+      { slug: 'banana', amount: 120 },
     ],
   },
 
