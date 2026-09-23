@@ -132,9 +132,21 @@ export const UNDER_LOG_FLOOR = 0.5;
 export function assumptionOf(
   settings: Pick<Settings, 'assumedDayKcal'>,
   targetKcal: number,
-  overrides?: Map<string, DayIntakeOverride> | null,
+  inputs?: AssumptionInputs | null,
 ): Assumption {
-  return { kcal: settings.assumedDayKcal ?? null, targetKcal, overrides };
+  return {
+    kcal: settings.assumedDayKcal ?? null,
+    targetKcal,
+    overrides: inputs?.overrides,
+    since: inputs?.since,
+  };
+}
+
+/** What the database has to supply for the assumption to be well-formed. */
+export interface AssumptionInputs {
+  overrides: Map<string, DayIntakeOverride>;
+  /** `localDate` of the very first food log, ever. Null when there are none. */
+  since: string | null;
 }
 
 /** Everything `resolveWeek` needs to decide what an unwritten day cost. */
@@ -144,6 +156,16 @@ export interface Assumption {
   targetKcal: number;
   /** Your explicit rulings, keyed by `localDate`. */
   overrides?: Map<string, DayIntakeOverride> | null;
+  /**
+   * The first day you ever logged anything. Nothing before it is assumed.
+   *
+   * The assumption's whole justification is "you ate that day and did not write
+   * it down". That holds for a gap between days you were logging. It does not
+   * hold for the weeks before you had the app, and without this boundary the
+   * progress chart invented a solid year of 2.900 kcal days out of an empty
+   * database.
+   */
+  since?: string | null;
 }
 
 export interface DayTotal {
@@ -164,26 +186,37 @@ export interface DayTotal {
 }
 
 /**
- * The seven days of the week containing `today`, oldest first, each already
- * resolved to what the week should count it as.
+ * Every day from `fromDate` to `toDate` inclusive, oldest first, each resolved
+ * to what it should be counted as.
  *
- * Both the budget and the day-by-day list read this one function, so the bar
- * chart and the number above it can never tell different stories.
+ * This is the single place the assumption is applied. The weekly budget, the
+ * day-by-day bars, the progress chart and the maintenance estimate all read it,
+ * so no two of them can tell different stories about the same day.
  *
  * Today is never assumed: the day is not over, and filling it in would make
  * every morning open on a day that has already overspent.
  */
-export function resolveWeek(
+export function resolveDays(
   logs: FoodLog[],
+  fromDate: string,
+  toDate: string,
   today: string,
   assumption?: Assumption | null,
 ): DayTotal[] {
-  const start = weekStart(today);
-  const out: DayTotal[] = [];
+  const byDate = new Map<string, FoodLog[]>();
+  for (const log of logs) {
+    const list = byDate.get(log.localDate);
+    if (list) list.push(log);
+    else byDate.set(log.localDate, [log]);
+  }
 
-  for (let i = 0; i < 7; i++) {
-    const localDate = addDaysToLocalDate(start, i);
-    const dayLogs = logs.filter((l) => l.localDate === localDate);
+  const out: DayTotal[] = [];
+  for (
+    let localDate = fromDate;
+    localDate <= toDate;
+    localDate = addDaysToLocalDate(localDate, 1)
+  ) {
+    const dayLogs = byDate.get(localDate) ?? [];
     const loggedKcal = dayLogs.reduce((sum, l) => sum + l.kcal, 0);
     const isToday = localDate === today;
     const isFuture = localDate > today;
@@ -201,7 +234,9 @@ export function resolveWeek(
       isFuture,
     };
 
-    if (!isToday && !isFuture && assumption) {
+    const beforeYouStarted = assumption?.since != null && localDate < assumption.since;
+
+    if (!isToday && !isFuture && !beforeYouStarted && assumption) {
       const override = assumption.overrides?.get(localDate) ?? null;
       const fallback = assumption.kcal;
 
@@ -230,6 +265,16 @@ export function resolveWeek(
   }
 
   return out;
+}
+
+/** The seven days of the week containing `today`, oldest first. */
+export function resolveWeek(
+  logs: FoodLog[],
+  today: string,
+  assumption?: Assumption | null,
+): DayTotal[] {
+  const start = weekStart(today);
+  return resolveDays(logs, start, addDaysToLocalDate(start, 6), today, assumption);
 }
 
 // --------------------------------------------------------------- the budget
@@ -471,19 +516,38 @@ export interface MaintenanceEstimate {
   /** Null until there is enough data to say anything honest. */
   kcal: number | null;
   avgIntakeKcal: number;
-  /** Negative while losing. From a fit over every weigh-in, not first-vs-last. */
+  /**
+   * Negative while losing. From a fit over every weigh-in, not first-vs-last.
+   *
+   * Reported even when `kcal` is null, because it needs only the scale: a month
+   * of weigh-ins says something true about you whether or not you also wrote
+   * down what you ate, and refusing to show it was throwing that away.
+   */
   weightChangeKgPerWeek: number;
   spanDays: number;
   weighIns: number;
   loggedDays: number;
+  /** Days in the span the assumption filled in rather than the log. */
+  assumedDays: number;
   /** Share of the span with any food logged. Low coverage poisons the average. */
   coverage: number;
+  /** Share of the average that is assumed rather than logged. */
+  assumedShare: number;
   blocker: string | null;
 }
 
 const MIN_SPAN_DAYS = 14;
 const MIN_WEIGH_INS = 4;
 const MIN_COVERAGE = 0.7;
+/**
+ * Past this share of assumed days the average stops being a measurement.
+ *
+ * The assumption is a good enough stand-in for the odd day you forgot — it is
+ * your own figure, and it beats dropping the day, which silently claims you ate
+ * nothing. It is not good enough to carry a month. At 40% the number still
+ * rests mostly on what you actually weighed and wrote down.
+ */
+const MAX_ASSUMED_SHARE = 0.4;
 
 /**
  * Your actual maintenance, worked backwards from what you ate and what the
@@ -507,22 +571,32 @@ export function estimateMaintenance(
   weights: { localDate: string; weightKg?: number | null }[],
   today = todayLocalDate(),
   spanDays = 28,
+  assumption?: Assumption | null,
 ): MaintenanceEstimate {
-  const from = addDaysToLocalDate(today, -(spanDays - 1));
+  // The window ends yesterday. Today is half eaten, and averaging a half day in
+  // with whole ones drags the estimate down by however early you are looking.
+  const lastFullDay = addDaysToLocalDate(today, -1);
+  const from = addDaysToLocalDate(lastFullDay, -(spanDays - 1));
 
   const points = weights
     .filter((w) => w.weightKg != null && w.localDate >= from && w.localDate <= today)
     .map((w) => ({ x: daysBetween(from, w.localDate), y: w.weightKg as number }))
     .sort((a, b) => a.x - b.x);
 
+  // Worked out before any of the blockers, because the trend survives them all:
+  // it is the one reading that needs nothing but the scale.
+  const trendKgPerWeek = points.length >= 2 ? linearSlope(points) * 7 : 0;
+
   const empty: MaintenanceEstimate = {
     kcal: null,
     avgIntakeKcal: 0,
-    weightChangeKgPerWeek: 0,
+    weightChangeKgPerWeek: trendKgPerWeek,
     spanDays: 0,
     weighIns: points.length,
     loggedDays: 0,
+    assumedDays: 0,
     coverage: 0,
+    assumedShare: 0,
     blocker: null,
   };
 
@@ -538,23 +612,26 @@ export function estimateMaintenance(
   const spanTo = addDaysToLocalDate(from, points[points.length - 1].x);
   const spanCovered = points[points.length - 1].x - points[0].x + 1;
 
-  const byDay = new Map<string, number>();
-  for (const log of logs) {
-    if (log.localDate >= spanFrom && log.localDate <= spanTo) {
-      byDay.set(log.localDate, (byDay.get(log.localDate) ?? 0) + log.kcal);
-    }
-  }
-  const loggedDays = byDay.size;
+  // Resolved rather than raw: a day you did not write down is filled with your
+  // own assumed figure, which is a far better input than dropping it. Dropping
+  // it was what made the estimate refuse to fire for anyone who logs in bursts.
+  const days = resolveDays(logs, spanFrom, spanTo, today, assumption);
+  const counted = days.filter((d) => d.logCount > 0 || d.assumed);
+  const loggedDays = days.filter((d) => d.logCount > 0).length;
+  const assumedDays = days.filter((d) => d.assumed).length;
   const avgIntakeKcal =
-    loggedDays > 0 ? [...byDay.values()].reduce((a, b) => a + b, 0) / loggedDays : 0;
-  const coverage = spanCovered > 0 ? loggedDays / spanCovered : 0;
+    counted.length > 0 ? counted.reduce((sum, d) => sum + d.kcal, 0) / counted.length : 0;
+  const coverage = spanCovered > 0 ? counted.length / spanCovered : 0;
+  const assumedShare = counted.length > 0 ? assumedDays / counted.length : 0;
 
   const base: MaintenanceEstimate = {
     ...empty,
     avgIntakeKcal,
     spanDays: spanCovered,
     loggedDays,
+    assumedDays,
     coverage,
+    assumedShare,
   };
 
   if (spanCovered < MIN_SPAN_DAYS) {
@@ -566,17 +643,22 @@ export function estimateMaintenance(
   if (coverage < MIN_COVERAGE) {
     return {
       ...base,
-      blocker: `Registraste ${loggedDays} de ${spanCovered} días. Con menos del ${Math.round(
+      blocker: `Hay ${counted.length} de ${spanCovered} días con algo que contar. Con menos del ${Math.round(
         MIN_COVERAGE * 100,
       )}% el promedio no representa lo que comiste.`,
     };
   }
+  if (assumedShare > MAX_ASSUMED_SHARE) {
+    return {
+      ...base,
+      blocker: `${assumedDays} de los ${counted.length} días son asumidos, no anotados. El promedio sería más suposición que medición: anotá seguido unas dos semanas y el número sale solo.`,
+    };
+  }
 
   const slopeKgPerDay = linearSlope(points);
-  const weightChangeKgPerWeek = slopeKgPerDay * 7;
   const kcal = avgIntakeKcal - slopeKgPerDay * KCAL_PER_KG;
 
-  return { ...base, kcal, weightChangeKgPerWeek };
+  return { ...base, weightChangeKgPerWeek: slopeKgPerDay * 7, kcal };
 }
 
 /** Least-squares slope of y over x. Zero when x never varies. */
@@ -595,33 +677,47 @@ function linearSlope(points: { x: number; y: number }[]): number {
 
 export interface WeekIntake {
   weekStartDate: string;
+  /** The week's daily average, assumption included. */
   avgKcal: number;
+  /** The part of that average the log actually supports. */
+  avgLoggedKcal: number;
   loggedDays: number;
+  assumedDays: number;
   avgWeightKg: number | null;
 }
 
-/** Weekly intake averages paired with that week's mean weight, oldest first. */
+/**
+ * Weekly intake averages paired with that week's mean weight, oldest first.
+ *
+ * `avgKcal` and `avgLoggedKcal` are split so the chart can draw the assumed
+ * part as a separate, hatched segment: the bar stays honest about how much of
+ * its own height was written down.
+ */
 export function weeklyIntake(
   logs: FoodLog[],
   weights: { localDate: string; weightKg?: number | null }[],
   weekKeys: string[],
+  today = todayLocalDate(),
+  assumption?: Assumption | null,
 ): WeekIntake[] {
   return weekKeys.map((key) => {
     const end = addDaysToLocalDate(key, 6);
-    const days = new Map<string, number>();
-    for (const l of logs) {
-      if (l.localDate >= key && l.localDate <= end) {
-        days.set(l.localDate, (days.get(l.localDate) ?? 0) + l.kcal);
-      }
-    }
+    const days = resolveDays(logs, key, end, today, assumption).filter(
+      (d) => d.logCount > 0 || d.assumed,
+    );
     const weekWeights = weights
       .filter((w) => w.weightKg != null && w.localDate >= key && w.localDate <= end)
       .map((w) => w.weightKg as number);
 
+    const mean = (pick: (d: DayTotal) => number) =>
+      days.length > 0 ? days.reduce((sum, d) => sum + pick(d), 0) / days.length : 0;
+
     return {
       weekStartDate: key,
-      avgKcal: days.size > 0 ? [...days.values()].reduce((a, b) => a + b, 0) / days.size : 0,
-      loggedDays: days.size,
+      avgKcal: mean((d) => d.kcal),
+      avgLoggedKcal: mean((d) => d.loggedKcal),
+      loggedDays: days.filter((d) => d.logCount > 0).length,
+      assumedDays: days.filter((d) => d.assumed).length,
       avgWeightKg:
         weekWeights.length > 0
           ? weekWeights.reduce((a, b) => a + b, 0) / weekWeights.length

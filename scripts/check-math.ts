@@ -4,9 +4,11 @@ import {
   setLoad, loadLabel, loadLabelShort, topSet, bestE1RM, workoutVolume,
 } from '../src/lib/calc.ts';
 import type { WorkoutSet } from '../src/db/types.ts';
-import { weekStart, localDateOf, recentWeeks, daysBetween } from '../src/lib/dates.ts';
+import { weekStart, localDateOf, recentWeeks, daysBetween, addDaysToLocalDate } from '../src/lib/dates.ts';
 import { MEAL_IDEAS, ideasFor, mealTarget, roundAmount, scaleIdea, tiltTarget } from '../src/lib/mealIdeas.ts';
-import { buildWeekBudget, dayAllowanceKcal } from '../src/lib/nutrition.ts';
+import {
+  buildWeekBudget, dayAllowanceKcal, estimateMaintenance, resolveWeek, weeklyIntake,
+} from '../src/lib/nutrition.ts';
 import {
   applyOverride, phaseBadge, phasePenalty, trainingContext, type TrainingSession,
 } from '../src/lib/trainingFuel.ts';
@@ -133,6 +135,54 @@ eq('earlier days spread over the rest of the week',
 eq('budget off reads the flat target', dayAllowanceKcal(2400, mon, false), 2400);
 eq('an overspent week floors at zero',
   dayAllowanceKcal(2400, buildWeekBudget([mkLog(monday, 17000)], 2400, '2026-09-15'), true), 0);
+
+console.log('--- days you did not log ---');
+const week = [mkLog('2026-09-14', 2600), mkLog('2026-09-15', 400), mkLog('2026-09-17', 2500)];
+const assume = { kcal: 2900, targetKcal: 2400, since: '2026-09-14' };
+const resolved = resolveWeek(week, '2026-09-18', assume);
+const mark = (d: (typeof resolved)[number]) =>
+  `${Math.round(d.kcal)}${d.assumed ? '*' : ''}`;
+eq('empty and half-logged past days are filled, today never is',
+  resolved.map(mark), ['2600', '2900*', '2900*', '2500', '0', '0', '0']);
+eq('a full day is left exactly as logged', resolved[0].loggedKcal, 2600);
+eq('the log is still readable under an assumed day', resolved[1].loggedKcal, 400);
+eq('an assumption never lowers a day',
+  resolveWeek([mkLog('2026-09-14', 3400)], '2026-09-18', assume)[0].kcal, 3400);
+eq('a day ruled logged is left alone',
+  resolveWeek(week, '2026-09-18', {
+    ...assume,
+    overrides: new Map([['2026-09-15', { localDate: '2026-09-15', mode: 'logged' as const, updatedAt: 0 }]]),
+  })[1].kcal, 400);
+eq('nothing before your first ever log is assumed',
+  resolveWeek(week, '2026-09-18', { ...assume, since: '2026-09-17' }).map(mark),
+  ['2600', '400', '0', '2500', '0', '0', '0']);
+eq('the budget counts the assumption',
+  Math.round(buildWeekBudget(week, 2400, '2026-09-18', assume).consumedKcal), 10900);
+eq('and says how much of it was assumed',
+  Math.round(buildWeekBudget(week, 2400, '2026-09-18', assume).assumedKcal), 5400);
+eq('the weekly average splits logged from assumed',
+  (() => {
+    const w = weeklyIntake(week, [], ['2026-09-14'], '2026-09-18', assume)[0];
+    return [Math.round(w.avgKcal), Math.round(w.avgLoggedKcal), w.loggedDays, w.assumedDays];
+  })(),
+  [2725, 1375, 3, 2]);
+
+console.log('--- maintenance ---');
+const weighIns = ['2026-08-27', '2026-09-03', '2026-09-10', '2026-09-17'].map((localDate, i) => ({
+  localDate, weightKg: 90 - i * 0.5,
+}));
+const fed = Array.from({ length: 22 }, (_, i) => mkLog(addDaysToLocalDate('2026-08-27', i), 2400));
+const solid = estimateMaintenance(fed, weighIns, '2026-09-18', 28);
+eq('a clean month gives a number', Math.round(solid.kcal ?? 0), 2950);
+eq('and the trend it rests on', Math.round(solid.weightChangeKgPerWeek * 100) / 100, -0.5);
+const gappy = estimateMaintenance(fed.slice(0, 6), weighIns, '2026-09-18', 28);
+eq('a patchy month gives none', gappy.kcal, null);
+eq('but still reports the trend', Math.round(gappy.weightChangeKgPerWeek * 100) / 100, -0.5);
+eq('too much assumption blocks the number',
+  estimateMaintenance(fed.slice(0, 6), weighIns, '2026-09-18', 28, {
+    kcal: 2900, targetKcal: 2400, since: '2026-08-27',
+  }).kcal,
+  null);
 
 console.log('--- training phase ---');
 const at = (localDate: string, h: number, m = 0) =>

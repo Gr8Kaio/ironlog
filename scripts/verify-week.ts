@@ -18,7 +18,12 @@ const backup = JSON.parse(readFileSync(path, 'utf8')) as {
 
 const today = process.argv[3] ?? '2026-09-23';
 const target = backup.settings.kcalTarget;
-const assumption = { kcal: backup.settings.assumedDayKcal ?? 2900, targetKcal: target };
+const firstLog = backup.foodLogs.map((l) => l.localDate).sort()[0] ?? null;
+const assumption = {
+  kcal: backup.settings.assumedDayKcal ?? 2900,
+  targetKcal: target,
+  since: firstLog,
+};
 
 const days = resolveWeek(backup.foodLogs, today, assumption);
 const budget = buildWeekBudget(backup.foodLogs, target, today, assumption);

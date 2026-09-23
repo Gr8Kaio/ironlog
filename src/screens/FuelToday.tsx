@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { getSettings } from '../db/db';
 import type { FoodLog, MealSlot } from '../db/types';
 import {
-  getDayOverridesForWeekOf,
+  getAssumptionInputs,
   getLogsForDate,
   getLogsForWeekOf,
   getTrainingSessions,
@@ -66,7 +66,7 @@ export function FuelToday() {
   const settings = useLiveQuery(() => getSettings(), [], undefined);
   const logs = useLiveQuery(() => getLogsForDate(date), [date], undefined);
   const weekLogs = useLiveQuery(() => getLogsForWeekOf(date), [date], undefined);
-  const overrides = useLiveQuery(() => getDayOverridesForWeekOf(date), [date], undefined);
+  const assumptionInputs = useLiveQuery(() => getAssumptionInputs(date), [date], undefined);
   const sessions = useLiveQuery(() => getTrainingSessions(8, today), [today], undefined);
 
   // "Hace 40 min" has to stay true while the screen sits open: the recovery
@@ -113,7 +113,7 @@ export function FuelToday() {
     </div>
   );
 
-  if (!settings || !logs || !weekLogs || !sessions || !overrides) {
+  if (!settings || !logs || !weekLogs || !sessions || !assumptionInputs) {
     return (
       <Screen>
         <TopBar title="Fuel" subtitle={formatDayLabel(date)} right={dayNav} />
@@ -124,7 +124,7 @@ export function FuelToday() {
   const target = settings.kcalTarget ?? 0;
   if (target <= 0) return <SetupPrompt onOpen={() => navigate('/settings')} />;
 
-  const budget = buildWeekBudget(weekLogs, target, today, assumptionOf(settings, target, overrides));
+  const budget = buildWeekBudget(weekLogs, target, today, assumptionOf(settings, target, assumptionInputs));
   // The rolling allowance is a forward-looking number anchored to today, so a
   // past day is read against the flat daily target instead. "Te queda" on a day
   // that is already over would be nonsense.

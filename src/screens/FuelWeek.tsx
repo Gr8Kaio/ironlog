@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSettings } from '../db/db';
-import { getDayOverridesForWeekOf, getLogsForWeekOf, setDayOverride } from '../db/queries';
+import { getAssumptionInputs, getLogsForWeekOf, setDayOverride } from '../db/queries';
 import type { DayIntakeOverride } from '../db/types';
 import {
+  assumptionOf,
   buildWeekBudget,
   fmtKcal,
   planBigDay,
@@ -36,7 +37,7 @@ export function FuelWeek() {
 
   const settings = useLiveQuery(() => getSettings(), [], undefined);
   const logs = useLiveQuery(() => getLogsForWeekOf(today), [today], undefined);
-  const overrides = useLiveQuery(() => getDayOverridesForWeekOf(today), [today], undefined);
+  const assumptionInputs = useLiveQuery(() => getAssumptionInputs(today), [today], undefined);
   const [ruling, setRuling] = useState<DayTotal | null>(null);
 
   const back = (
@@ -49,7 +50,7 @@ export function FuelWeek() {
     </button>
   );
 
-  if (!settings || !logs || !overrides) {
+  if (!settings || !logs || !assumptionInputs) {
     return (
       <Screen>
         <TopBar title="Semana" left={back} />
@@ -70,11 +71,7 @@ export function FuelWeek() {
     );
   }
 
-  const assumption: Assumption = {
-    kcal: settings.assumedDayKcal ?? null,
-    targetKcal: target,
-    overrides,
-  };
+  const assumption: Assumption = assumptionOf(settings, target, assumptionInputs);
   const budget = buildWeekBudget(logs, target, today, assumption);
   const days = weekDayTotals(logs, today, assumption);
   const daysRemaining = budget.daysLeft + 1;
@@ -220,7 +217,7 @@ export function FuelWeek() {
 
       <DayRulingSheet
         day={ruling}
-        override={ruling ? (overrides.get(ruling.localDate) ?? null) : null}
+        override={ruling ? (assumptionInputs.overrides.get(ruling.localDate) ?? null) : null}
         defaultKcal={settings.assumedDayKcal ?? target}
         onClose={() => setRuling(null)}
       />

@@ -15,6 +15,7 @@ import type {
   WorkoutSet,
 } from './types';
 import { bestE1RM, epley1RM, isWorkingSet, setLoad, setVolume, topSet, workoutVolume } from '../lib/calc';
+import type { AssumptionInputs } from '../lib/nutrition';
 import { addDaysToLocalDate, localDateOf, monthKey, recentWeeks, todayLocalDate, weekStart } from '../lib/dates';
 import type { TrainingSession } from '../lib/trainingFuel';
 
@@ -509,6 +510,21 @@ export async function getDayOverridesForWeekOf(
     .between(start, addDaysToLocalDate(start, 6), true, true)
     .toArray();
   return new Map(rows.map((row) => [row.localDate, row]));
+}
+
+/**
+ * Everything the assumption needs from the database, in one read.
+ *
+ * Bundled because the two halves are useless apart: a ruling without the start
+ * date lets the assumption run off the front of your history, and the start
+ * date without the rulings ignores what you said about a specific day.
+ */
+export async function getAssumptionInputs(localDate: string): Promise<AssumptionInputs> {
+  const [overrides, first] = await Promise.all([
+    getDayOverridesForWeekOf(localDate),
+    db.foodLogs.orderBy('localDate').first(),
+  ]);
+  return { overrides, since: first?.localDate ?? null };
 }
 
 /**

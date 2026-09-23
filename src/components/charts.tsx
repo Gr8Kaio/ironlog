@@ -64,7 +64,12 @@ export function ChartFrame({
       <header className="mb-2 flex items-baseline justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-medium">{title}</h3>
-          {hint ? <p className="truncate text-[11px] text-faint">{hint}</p> : null}
+          {/*
+            The title truncates because it is a name and a long one is a naming
+            problem. The hint does not: it is the sentence that says what each
+            mark means, and half of that sentence is worth nothing.
+          */}
+          {hint ? <p className="text-[11px] leading-snug text-faint">{hint}</p> : null}
         </div>
         {action}
       </header>
