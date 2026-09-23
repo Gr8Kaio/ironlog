@@ -33,6 +33,18 @@ export type Equipment = (typeof EQUIPMENT)[number];
 export const SET_TYPES = ['warmup', 'working', 'amrap', 'dropset'] as const;
 export type SetType = (typeof SET_TYPES)[number];
 
+/**
+ * Whether the thing is done with both limbs at once or one side at a time.
+ *
+ * It exists because on a cable stack the same handle does both, and the plan
+ * has no way to say which was meant: 3x12 on a pushdown is three sets, 3x12 on
+ * a single-arm pushdown is six. Left unset on everything where there is no
+ * question — a barbell squat is not "bilateral", it is just a squat — so the
+ * badge only ever appears where it settles something.
+ */
+export const SIDE_MODES = ['both', 'perSide'] as const;
+export type SideMode = (typeof SIDE_MODES)[number];
+
 export const PR_TYPES = ['weight', 'e1rm', 'volume'] as const;
 export type PrType = (typeof PR_TYPES)[number];
 
@@ -52,6 +64,11 @@ export interface Exercise {
   equipment: Equipment;
   /** Smallest step this exercise can actually be loaded by. Drives the steppers. */
   incrementKg: number;
+  /**
+   * One hand at a time, or both. Undefined means the question does not arise
+   * for this exercise, and nothing is shown.
+   */
+  sideMode?: SideMode | null;
   isCustom: boolean;
   isArchived: boolean;
   notes?: string;
@@ -266,6 +283,31 @@ export interface FoodLog {
 }
 
 /**
+ * What to do with a past day the log does not describe.
+ *
+ * A day with nothing in it is a day you did not write down, not a day you did
+ * not eat, and reading it as zero flatters the week by a whole day's food. The
+ * week therefore fills those days with an assumption. This table is the manual
+ * say over that: one row per day you have ruled on, no row for the rest.
+ *
+ *  - `logged`   — trust what is written, however little. Use it on a real fast,
+ *                 or on a day you genuinely only ate breakfast.
+ *  - `assumed`  — fill it, even though it is written up. `kcal` overrides the
+ *                 configured figure when you have a better number for that day.
+ */
+export const DAY_INTAKE_MODES = ['logged', 'assumed'] as const;
+export type DayIntakeMode = (typeof DAY_INTAKE_MODES)[number];
+
+export interface DayIntakeOverride {
+  /** `YYYY-MM-DD`. The primary key: one ruling per day, and it is idempotent. */
+  localDate: string;
+  mode: DayIntakeMode;
+  /** Only read when `mode` is `assumed`. Null falls back to the setting. */
+  kcal?: number | null;
+  updatedAt: number;
+}
+
+/**
  * One drink, logged. Volume only: there is nothing else worth storing, and a
  * counter you can undo beats a number you have to retype.
  */
@@ -306,6 +348,15 @@ export interface Settings {
    * question, not a failed day.
    */
   weeklyBudgetEnabled: boolean;
+  /**
+   * What a past day with no usable log is counted as, in kcal. Null switches
+   * the assumption off and lets an unlogged day read as zero.
+   *
+   * It is a setting rather than a constant because it is a claim about *you*:
+   * the honest figure is what you eat on a day you are not paying attention,
+   * which is usually somewhat above target, not the target itself.
+   */
+  assumedDayKcal?: number | null;
   /**
    * Share of the day's energy each meal is planned to carry. Configurable
    * because meal shapes are personal: a 20/35/15/30 day and an 8/45/12/35 day

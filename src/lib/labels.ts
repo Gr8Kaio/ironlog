@@ -1,4 +1,12 @@
-import type { Equipment, KneeState, MuscleGroup, RunType, SetType, Surface } from '../db/types';
+import type {
+  Equipment,
+  KneeState,
+  MuscleGroup,
+  RunType,
+  SetType,
+  SideMode,
+  Surface,
+} from '../db/types';
 
 export const MUSCLE_LABEL: Record<MuscleGroup, string> = {
   chest: 'Chest',
@@ -22,6 +30,18 @@ export const EQUIPMENT_LABEL: Record<Equipment, string> = {
   bodyweight: 'Bodyweight',
   kettlebell: 'Kettlebell',
   band: 'Band',
+};
+
+/** Spelled out, for the picker in the exercise editor. */
+export const SIDE_MODE_LABEL: Record<SideMode, string> = {
+  both: 'Con las dos manos a la vez',
+  perSide: 'Una mano por vez (las series son por lado)',
+};
+
+/** For the badge in a session, where there is room for two words at most. */
+export const SIDE_MODE_SHORT: Record<SideMode, string> = {
+  both: 'las dos',
+  perSide: 'una mano',
 };
 
 export const SET_TYPE_LABEL: Record<SetType, string> = {

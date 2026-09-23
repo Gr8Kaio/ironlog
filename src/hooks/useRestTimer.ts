@@ -17,17 +17,27 @@ interface StoredTimer {
  *
  * Alerting on iOS is the awkward part. Safari only delivers Notifications for
  * a PWA installed to the home screen (16.4+), never for a tab, and it freezes
- * timers in a backgrounded tab. So the alert is layered, cheapest first:
+ * timers in a backgrounded tab. There is no scheduled-notification API at all,
+ * so nothing here can promise an alert from an app the system has fully
+ * evicted. What it does instead is fire the same alert from four places, each
+ * of which survives a different failure:
  *
- *   1. WebAudio beep scheduled at an exact context time - the only alert that
- *      survives the screen switching off mid-rest.
- *   2. A screen wake lock while resting, which keeps the app foregrounded and
- *      is what makes 1 and 3 fire on time.
- *   3. A Notification when permission exists, plus vibration where supported
- *      (never on iOS, which has no Vibration API).
+ *   1. WebAudio beeps scheduled at an exact context time - the only alert that
+ *      survives the screen switching off mid-rest, because the audio graph is
+ *      committed up front and needs no code to run at the moment it sounds.
+ *   2. A near-silent tone held for the length of the rest. Inaudible, and it is
+ *      what keeps the audio session alive once the app goes to the background:
+ *      without it iOS suspends the context and 1 never sounds.
+ *   3. The service worker, handed the deadline, raising the notification from
+ *      outside the page. This is the one that can fire while the app is
+ *      backgrounded rather than merely screen-off - for as long as the browser
+ *      keeps the worker alive, which is not long and is not promised.
+ *   4. The page itself, on its own tick and again the moment it becomes
+ *      visible, so a rest that ran out while frozen alerts late rather than
+ *      never.
  *
- * On returning to a tab that was frozen past the end, the effect fires the
- * alert immediately rather than silently swallowing it.
+ * Notifications go through the service-worker registration rather than
+ * `new Notification()`: an installed iOS PWA delivers them no other way.
  */
 export function useRestTimer() {
   const [endsAt, setEndsAt] = useState<number | null>(null);
@@ -37,6 +47,7 @@ export function useRestTimer() {
 
   const audioRef = useRef<AudioContext | null>(null);
   const scheduled = useRef<{ osc: OscillatorNode; gain: GainNode }[]>([]);
+  const keepAlive = useRef<{ osc: OscillatorNode; gain: GainNode } | null>(null);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
   const fired = useRef(false);
 
@@ -63,6 +74,52 @@ export function useRestTimer() {
     wakeLock.current = null;
   }, []);
 
+  /**
+   * Holds the audio session open for the length of the rest.
+   *
+   * A context with nothing playing is suspended the moment iOS backgrounds the
+   * app, and a suspended context does not sound the beeps already scheduled in
+   * it. A tone this quiet is inaudible on any device and is enough to keep the
+   * session live. It stops as soon as the rest ends, so nothing is held open
+   * between sets.
+   */
+  const startKeepAlive = useCallback((ctx: AudioContext, seconds: number) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 60;
+    gain.gain.value = 0.0008;
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    // A hard stop a beat after the last beep, so a timer left running cannot
+    // hold the audio session open for the rest of the day.
+    osc.stop(ctx.currentTime + seconds + 2);
+    keepAlive.current = { osc, gain };
+  }, []);
+
+  const stopKeepAlive = useCallback(() => {
+    const node = keepAlive.current;
+    keepAlive.current = null;
+    if (!node) return;
+    try {
+      node.osc.stop();
+      node.osc.disconnect();
+      node.gain.disconnect();
+    } catch {
+      // Already stopped by its own scheduled stop time.
+    }
+  }, []);
+
+  /** Hands the worker the deadline, so it can alert while the page cannot. */
+  const tellWorker = useCallback((message: Record<string, unknown>) => {
+    if (!('serviceWorker' in navigator)) return;
+    void navigator.serviceWorker.ready
+      .then((registration) => registration.active?.postMessage({ type: 'ironlog-rest', ...message }))
+      .catch(() => {
+        // No worker here, or it is still installing. The beep covers it.
+      });
+  }, []);
+
   const clearScheduledAudio = useCallback(() => {
     for (const node of scheduled.current) {
       try {
@@ -78,59 +135,77 @@ export function useRestTimer() {
 
   const stop = useCallback(() => {
     clearScheduledAudio();
+    stopKeepAlive();
     releaseWakeLock();
+    tellWorker({ action: 'cancel' });
     localStorage.removeItem(STORAGE_KEY);
     setEndsAt(null);
     setRemaining(0);
     setLabel(undefined);
-  }, [clearScheduledAudio, releaseWakeLock]);
+  }, [clearScheduledAudio, stopKeepAlive, releaseWakeLock, tellWorker]);
 
   const alertNow = useCallback(() => {
     if (fired.current) return;
     fired.current = true;
+    stopKeepAlive();
     navigator.vibrate?.([200, 100, 200]);
-    if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification('Rest over', { body: label ?? 'Next set', tag: 'ironlog-rest' });
-      } catch {
-        // Some browsers only allow this from a service worker; the beep covers it.
-      }
-    }
-  }, [label]);
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+    // Through the registration first: an installed iOS PWA delivers a
+    // notification no other way, and the shared `tag` collapses this into the
+    // banner the worker may already have raised rather than stacking two.
+    const body = label ?? 'Va la que sigue';
+    void navigator.serviceWorker?.ready
+      .then((registration) =>
+        registration.showNotification('Descanso terminado', { body, tag: 'ironlog-rest' }),
+      )
+      .catch(() => {
+        try {
+          new Notification('Descanso terminado', { body, tag: 'ironlog-rest' });
+        } catch {
+          // Blocked here too. The beep is the alert.
+        }
+      });
+  }, [label, stopKeepAlive]);
 
   /**
    * Schedules three beeps at an exact AudioContext time. Doing this up front
    * rather than on a timer callback is what lets the alert survive the tab
    * being frozen: the audio graph is already committed.
    */
-  const scheduleBeep = useCallback((seconds: number, enabled: boolean) => {
-    if (!enabled) return;
-    audioRef.current ??= new AudioContext();
-    const ctx = audioRef.current;
-    // Starting the timer is a user gesture, so this is the moment the context
-    // can legally be unlocked.
-    void ctx.resume().catch(() => {});
+  const scheduleBeep = useCallback(
+    (seconds: number, enabled: boolean) => {
+      if (!enabled) return;
+      audioRef.current ??= new AudioContext();
+      const ctx = audioRef.current;
+      // Starting the timer is a user gesture, so this is the moment the context
+      // can legally be unlocked.
+      void ctx.resume().catch(() => {});
+      startKeepAlive(ctx, seconds);
 
-    const at = ctx.currentTime + seconds;
-    for (let i = 0; i < 3; i++) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const start = at + i * 0.28;
-      osc.type = 'sine';
-      osc.frequency.value = i === 2 ? 1180 : 880;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.45, start + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(start);
-      osc.stop(start + 0.25);
-      scheduled.current.push({ osc, gain });
-    }
-  }, []);
+      const at = ctx.currentTime + seconds;
+      for (let i = 0; i < 3; i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const start = at + i * 0.28;
+        osc.type = 'sine';
+        osc.frequency.value = i === 2 ? 1180 : 880;
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.45, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.25);
+        scheduled.current.push({ osc, gain });
+      }
+    },
+    [startKeepAlive],
+  );
 
   const start = useCallback(
     (seconds: number, options?: { label?: string; sound?: boolean }) => {
       clearScheduledAudio();
+      stopKeepAlive();
       fired.current = false;
       const ends = Date.now() + seconds * 1000;
       setEndsAt(ends);
@@ -142,6 +217,7 @@ export function useRestTimer() {
         JSON.stringify({ endsAt: ends, totalSec: seconds, label: options?.label }),
       );
       scheduleBeep(seconds, options?.sound !== false);
+      tellWorker({ action: 'schedule', endsAt: ends, label: options?.label });
       navigator.wakeLock
         ?.request('screen')
         .then((lock) => {
@@ -151,7 +227,7 @@ export function useRestTimer() {
           // Denied or unsupported. The timer still runs, the screen may sleep.
         });
     },
-    [clearScheduledAudio, scheduleBeep],
+    [clearScheduledAudio, stopKeepAlive, scheduleBeep, tellWorker],
   );
 
   /** Add or remove time without losing the beep already scheduled. */

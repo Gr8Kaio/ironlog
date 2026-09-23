@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getSettings, newId } from '../db/db';
@@ -15,7 +15,7 @@ import {
   setLoad,
 } from '../lib/calc';
 import { formatDateShort } from '../lib/dates';
-import { SET_TYPE_LABEL } from '../lib/labels';
+import { SET_TYPE_LABEL, SIDE_MODE_SHORT } from '../lib/labels';
 import { Stepper } from '../components/Stepper';
 import { PlateMath } from '../components/PlateMath';
 import { ExercisePicker } from '../components/ExercisePicker';
@@ -107,8 +107,15 @@ export function ActiveWorkout() {
 
   // Open the first exercise that still owes sets, so the screen lands on the
   // thing to do next without a tap.
+  //
+  // Once only. It used to re-run on every `openId === null`, which meant
+  // collapsing a block reopened it on the spot, and now that finishing the
+  // last exercise closes everything, it would have reopened the session the
+  // moment it was done.
+  const landed = useRef(false);
   useEffect(() => {
-    if (openId !== null || !sets || !prescriptions || lineup.length === 0) return;
+    if (landed.current || openId !== null || !sets || !prescriptions || lineup.length === 0) return;
+    landed.current = true;
     const next =
       lineup.find((id) => {
         const done = sets.filter((s) => s.exerciseId === id).length;
@@ -167,6 +174,35 @@ export function ActiveWorkout() {
 
     const rest = prescriptionFor(exercise.id)?.restSeconds ?? settings!.defaultRestSec;
     timer.start(rest, { label: exercise.name, sound: settings!.soundOnRestEnd });
+
+    // Finishing the prescribed sets means the next thing to do is the next
+    // exercise. Leaving this block open offered "Log set 4" as the obvious
+    // action, which is how a 3x10 quietly turns into a 4x10 every week.
+    const target = prescriptionFor(exercise.id)?.targetSets ?? 0;
+    if (target > 0 && existing.length + 1 >= target) {
+      setOpenId(nextOwing(exercise.id, exercise.id));
+    }
+  }
+
+  /**
+   * The next exercise in the lineup that still owes sets, counting `justLogged`
+   * as one more than the live query has caught up with.
+   *
+   * It wraps rather than stopping at the end: a superset logged out of order,
+   * or an exercise skipped and come back to, should still hand you the thing
+   * that is actually left. Null when nothing is — every block closes, which is
+   * the session telling you it is done.
+   */
+  function nextOwing(fromId: string, justLogged: string): string | null {
+    const countOf = (id: string) =>
+      (sets ?? []).filter((s) => s.exerciseId === id).length + (id === justLogged ? 1 : 0);
+    const from = lineup.indexOf(fromId);
+    for (let step = 1; step <= lineup.length; step++) {
+      const id = lineup[(from + step) % lineup.length];
+      const target = prescriptionFor(id)?.targetSets ?? 0;
+      if (target > 0 && countOf(id) < target) return id;
+    }
+    return null;
   }
 
   async function removeSet(set: WorkoutSet) {
@@ -425,12 +461,24 @@ function ExerciseBlock({
               {complete ? <CheckIcon className="size-4" /> : `${done}/${target || '-'}`}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium">{exercise.name}</span>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="truncate font-medium">{exercise.name}</span>
+                {/*
+                  On a cable stack the same handle does both, so "3 series" is
+                  three sets or six depending on an answer the plan never gave.
+                  The badge gives it, right where the sets are counted.
+                */}
+                {exercise.sideMode ? (
+                  <Chip tone={exercise.sideMode === 'perSide' ? 'iron' : 'neutral'}>
+                    {SIDE_MODE_SHORT[exercise.sideMode]}
+                  </Chip>
+                ) : null}
+              </span>
               <span className="block truncate text-xs text-faint">
                 {prescription
                   ? `${prescription.targetSets} x ${prescription.repMin}-${prescription.repMax}${
                       prescription.targetRpe ? ` @ RPE ${prescription.targetRpe}` : ''
-                    }`
+                    }${exercise.sideMode === 'perSide' ? ' por lado' : ''}`
                   : 'No target'}
               </span>
             </span>

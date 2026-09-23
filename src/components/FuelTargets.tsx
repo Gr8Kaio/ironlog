@@ -110,6 +110,23 @@ export function FuelTargets() {
             {settings.weeklyBudgetEnabled ? 'On' : 'Off'}
           </Chip>
         </button>
+
+        <Stepper
+          label="Día sin anotar"
+          value={settings.assumedDayKcal ?? 0}
+          onChange={(value) => updateSettings({ assumedDayKcal: value === 0 ? null : value })}
+          step={KCAL_STEP}
+          min={0}
+          max={6000}
+          suffix="kcal"
+          format={(v) => (v === 0 ? 'no asumir' : String(v))}
+        />
+        <p className="text-[11px] leading-snug text-faint">
+          Con cuánto se cuenta un día pasado que no anotaste, o que anotaste a medias. Poner cero lo
+          deja en lo que diga el log, que siempre miente para abajo. Poné lo que comés de verdad un
+          día que no estás contando, no tu objetivo — en la vista de semana podés corregir cualquier
+          día a mano.
+        </p>
       </Card>
 
       <SectionTitle

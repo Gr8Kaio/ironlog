@@ -9,7 +9,7 @@
  *
  * Type imports only, so scripts/check-math.ts can load this file in Node.
  */
-import type { Food, FoodUnit, MealSlot } from '../db/types';
+import type { Food, FoodLog, FoodUnit, MealSlot } from '../db/types';
 import type { Macros } from './nutrition';
 import { phasePenalty, type TrainingPhase } from './trainingFuel.ts';
 
@@ -88,6 +88,42 @@ export const MEAL_IDEAS: MealIdea[] = [
       { slug: 'banana', amount: 120 },
       { slug: 'miel', amount: 15 },
       { slug: 'batido-proteina-leche-descremada', amount: 1 },
+    ],
+  },
+  {
+    id: 'ricota-pan-banana',
+    meal: 'breakfast',
+    name: 'Ricota con pan integral, banana y miel',
+    why: 'El desayuno de siempre, con los 25 g de proteína que le faltaban.',
+    items: [
+      { slug: 'ricota-semi', amount: 120, scales: true },
+      { slug: 'pan-integral', amount: 2, scales: true },
+      { slug: 'banana', amount: 120 },
+      { slug: 'miel', amount: 10 },
+    ],
+  },
+  {
+    id: 'yogur-griego-proteina-mani',
+    meal: 'breakfast',
+    name: 'Yogur griego con proteína, banana y maní',
+    why: 'Un desayuno de cereal con yogur queda en 10 g de proteína; este llega a 35 con las mismas calorías.',
+    items: [
+      { slug: 'yogur-griego-natural', amount: 1 },
+      { slug: 'proteina-star', amount: 20, scales: true },
+      { slug: 'banana', amount: 120, scales: true },
+      { slug: 'mani-tostado', amount: 15 },
+    ],
+  },
+  {
+    id: 'huevos-pan-tomate',
+    meal: 'breakfast',
+    name: 'Huevos con pan integral y tomate',
+    why: 'Sin nada raro: huevo y pan, que es lo que ya comés, pesado para que cierre.',
+    items: [
+      { slug: 'huevo', amount: 3, scales: true },
+      { slug: 'pan-integral', amount: 2, scales: true },
+      { slug: 'tomate', amount: 150 },
+      { slug: 'queso-untable-light', amount: 30 },
     ],
   },
   {
@@ -194,7 +230,57 @@ export const MEAL_IDEAS: MealIdea[] = [
     ],
   },
 
+  {
+    id: 'arroz-cerdo-ensalada',
+    meal: 'lunch',
+    name: 'Arroz con costeleta de cerdo y ensalada',
+    why: 'Tu almuerzo de siempre. La diferencia es la ensalada y que el arroz está pesado.',
+    items: [
+      { slug: 'costeleta-cerdo', amount: 180, scales: true },
+      { slug: 'arroz', amount: 90, scales: true },
+      { slug: 'lechuga', amount: 80 },
+      { slug: 'tomate', amount: 150 },
+      { slug: 'aceite-oliva', amount: 5 },
+    ],
+  },
+  {
+    id: 'fideos-pollo-tomate',
+    meal: 'lunch',
+    name: 'Fideos con pollo y tomate',
+    why: 'Los fideos solos son 600 kcal sin proteína; con pechuga el mismo plato sostiene músculo.',
+    items: [
+      { slug: 'fideos', amount: 100, scales: true },
+      { slug: 'pechuga-pollo', amount: 180, scales: true },
+      { slug: 'tomate', amount: 150 },
+      { slug: 'cebolla', amount: 50 },
+      { slug: 'parmesano', amount: 10 },
+    ],
+  },
+  {
+    id: 'milanesa-cerdo-papa-ensalada',
+    meal: 'lunch',
+    name: 'Milanesa de cerdo al horno con papa y ensalada',
+    why: 'Al horno y con la papa pesada: la misma milanesa, sabiendo lo que cuesta.',
+    items: [
+      { slug: 'milanesa-cerdo-horno', amount: 150, scales: true },
+      { slug: 'papa', amount: 250, scales: true },
+      { slug: 'lechuga', amount: 80 },
+      { slug: 'tomate', amount: 150 },
+    ],
+  },
+
   // -------------------------------------------------------------------- snack
+  {
+    id: 'yogur-banana-mani',
+    meal: 'snack',
+    name: 'Yogur griego con banana y maní',
+    why: 'Entre horas sin batido: proteína, fruta y grasa buena, y se arma en un minuto.',
+    items: [
+      { slug: 'yogur-griego-natural', amount: 1 },
+      { slug: 'banana', amount: 120, scales: true },
+      { slug: 'mani-tostado', amount: 20, scales: true },
+    ],
+  },
   {
     id: 'batido-banana',
     meal: 'snack',
@@ -302,6 +388,31 @@ export const MEAL_IDEAS: MealIdea[] = [
       { slug: 'papa', amount: 250, scales: true },
       { slug: 'tomate', amount: 150 },
       { slug: 'lechuga', amount: 80 },
+    ],
+  },
+  {
+    id: 'atun-papa-huevo',
+    meal: 'dinner',
+    name: 'Atún al aceite con papa y huevo',
+    why: 'Tres cosas que siempre hay en tu casa y suman 50 g de proteína sin cocinar casi nada.',
+    items: [
+      { slug: 'atun-aceite', amount: 1, scales: true },
+      { slug: 'papa', amount: 250, scales: true },
+      { slug: 'huevo', amount: 2 },
+      { slug: 'lechuga', amount: 80 },
+      { slug: 'tomate', amount: 150 },
+    ],
+  },
+  {
+    id: 'fideos-atun-tomate',
+    meal: 'dinner',
+    name: 'Fideos con atún y tomate',
+    why: 'La cena de fideos que ya hacés, con una lata adentro para que no sea solo carbohidrato.',
+    items: [
+      { slug: 'fideos', amount: 90, scales: true },
+      { slug: 'atun-aceite', amount: 1, scales: true },
+      { slug: 'tomate', amount: 150 },
+      { slug: 'cebolla', amount: 50 },
     ],
   },
   {
@@ -481,6 +592,74 @@ export function tiltTarget(t: MealTarget, phase?: TrainingPhase): MealTarget {
  * protein and carbohydrate after it. It breaks ties between plates that
  * already fit; it never outweighs getting the size right.
  */
+/**
+ * What a food is, reduced to something two entries for the same thing agree on.
+ *
+ * The first meaningful word, folded and clipped. It has to be this loose,
+ * because the library's own row for a food is usually *not* the row you log:
+ * "Fideo Tirabuzon (Don Vicente)" and the shipped "Fideos secos" are the same
+ * dinner, and matching on the row would have said you had never eaten pasta.
+ *
+ * Clipping to five characters is what makes "fideo" and "fideos" the same
+ * stem. It also collides "queso ricota" with "queso untable", which is a price
+ * worth paying: the worst a false match can do is rank a plate slightly better.
+ */
+const COMBINING_MARKS = /[\u0300-\u036f]/g;
+const STEM_LENGTH = 5;
+
+export function foodStem(name: string): string {
+  const first = name
+    .normalize('NFD')
+    .replace(COMBINING_MARKS, '')
+    .toLowerCase()
+    .replace(/\(.*/, '')
+    .trim()
+    .split(/\s+/)[0];
+  return (first ?? '').slice(0, STEM_LENGTH);
+}
+
+/** When you last ate each thing, by stem. Built from the log, not the library. */
+export function eatenStems(logs: Pick<FoodLog, 'name' | 'loggedAt'>[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const log of logs) {
+    const stem = foodStem(log.name);
+    if (!stem) continue;
+    out.set(stem, Math.max(out.get(stem) ?? 0, log.loggedAt));
+  }
+  return out;
+}
+
+/**
+ * A plate you have never eaten a single ingredient of is a worse suggestion
+ * than an equally well-fitting one built from your own shopping.
+ *
+ * Only the anchors count — the items that scale, which are the protein and the
+ * carbohydrate. Marking a plate down because you have never logged a tomato
+ * would be noise, and would push every idea towards the same three foods.
+ *
+ * The weight is small on purpose: this breaks ties between plates that already
+ * fit, it never rescues one that does not. And it fades rather than latches —
+ * something you ate once months ago scores between never and lately, so the
+ * ranking follows what you are eating now.
+ */
+const FAMILIARITY_WEIGHT = 0.5;
+const RECENT_MS = 21 * 24 * 60 * 60 * 1000;
+
+export function familiarityPenalty(
+  items: { food: Food; scales?: boolean }[],
+  eaten?: Map<string, number> | null,
+  now = Date.now(),
+): number {
+  const anchors = items.filter((i) => i.scales);
+  if (anchors.length === 0) return 0;
+  const cost = anchors.reduce((sum, { food }) => {
+    const lastEaten = eaten?.get(foodStem(food.name)) ?? food.lastUsedAt ?? null;
+    if (lastEaten === null) return sum + 1;
+    return sum + (now - lastEaten <= RECENT_MS ? 0 : 0.5);
+  }, 0);
+  return FAMILIARITY_WEIGHT * (cost / anchors.length);
+}
+
 export function fitScore(m: Macros, t: MealTarget, phase?: TrainingPhase): number {
   const rel = (a: number, b: number, floor: number) => Math.abs(a - b) / Math.max(b, floor);
   let score = rel(m.kcal, t.kcal, 100);
@@ -500,6 +679,9 @@ export function ideasFor(
   foods: Food[],
   target: MealTarget,
   phase?: TrainingPhase,
+  /** Your recent log, so the ranking leans towards food you actually eat. */
+  eaten?: Map<string, number> | null,
+  now = Date.now(),
 ): ScaledIdea[] {
   const bySlug = new Map<string, Food>();
   for (const f of foods) if (f.seedSlug && !f.isArchived) bySlug.set(f.seedSlug, f);
@@ -508,7 +690,16 @@ export function ideasFor(
   for (const idea of MEAL_IDEAS) {
     if (idea.meal !== meal) continue;
     const scaled = scaleIdea(idea, bySlug, target.kcal);
-    if (scaled) out.push({ ...scaled, score: fitScore(scaled.macros, target, phase) });
+    if (!scaled) continue;
+    const scalesBySlug = new Map(idea.items.map((i) => [i.slug, i.scales === true]));
+    const anchored = scaled.items.map((item) => ({
+      food: item.food,
+      scales: scalesBySlug.get(item.food.seedSlug ?? '') ?? false,
+    }));
+    out.push({
+      ...scaled,
+      score: fitScore(scaled.macros, target, phase) + familiarityPenalty(anchored, eaten, now),
+    });
   }
   return out.sort((a, b) => a.score - b.score);
 }

@@ -49,6 +49,9 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: `${BASE}index.html`,
         cleanupOutdatedCaches: true,
+        // The one hook a generateSW build gives us. It is what lets the worker
+        // raise the rest-over notification while the page itself is frozen.
+        importScripts: [`${BASE}rest-notify.js`],
       },
       devOptions: { enabled: false },
     }),

@@ -215,3 +215,12 @@ scripts/     math assertions, icon generation
 `src/lib/` has no React and no database imports beyond types, which is why
 `npm run check` can exercise it directly under Node's type stripping with no
 test framework.
+
+Two scripts read a real export instead of fixtures, for the calls that are
+judgement rather than arithmetic — what the week does with days you did not
+log, and how the meal ideas rank against what you actually eat:
+
+```
+node --experimental-strip-types scripts/verify-week.ts  <backup.json> [today]
+node --experimental-strip-types scripts/verify-ideas.ts <backup.json> [meal]
+```

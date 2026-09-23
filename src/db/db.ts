@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type {
   BodyMetric,
+  DayIntakeOverride,
   Exercise,
   Food,
   FoodLog,
@@ -35,6 +36,7 @@ export class IronLogDB extends Dexie {
   foods!: EntityTable<Food, 'id'>;
   foodLogs!: EntityTable<FoodLog, 'id'>;
   waterLogs!: EntityTable<WaterLog, 'id'>;
+  dayOverrides!: EntityTable<DayIntakeOverride, 'localDate'>;
   settings!: EntityTable<Settings, 'id'>;
 
   constructor() {
@@ -65,6 +67,13 @@ export class IronLogDB extends Dexie {
     this.version(3).stores({
       waterLogs: 'id, localDate, loggedAt',
     });
+
+    // v4 adds the manual say over what an unlogged day counts as. Keyed by the
+    // day itself rather than by an id: there is only ever one ruling per day,
+    // so writing it twice is an update and never a duplicate.
+    this.version(4).stores({
+      dayOverrides: 'localDate',
+    });
   }
 }
 
@@ -94,6 +103,10 @@ export const DEFAULT_SETTINGS: Settings = {
   carbsTargetG: null,
   fatTargetG: null,
   weeklyBudgetEnabled: true,
+  // Above target on purpose. A day you did not log is usually a day you were
+  // not counting, and those run high; assuming the target would quietly make
+  // every gap in the log look like a day that went to plan.
+  assumedDayKcal: 2900,
   // Argentine-shaped by default: a real merienda, a late and substantial cena.
   mealSplit: { breakfast: 0.2, lunch: 0.35, snack: 0.15, dinner: 0.3 },
   waterTargetMl: 2500,

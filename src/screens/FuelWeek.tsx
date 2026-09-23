@@ -2,16 +2,30 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getSettings } from '../db/db';
-import { getLogsForWeekOf } from '../db/queries';
+import { getDayOverridesForWeekOf, getLogsForWeekOf, setDayOverride } from '../db/queries';
+import type { DayIntakeOverride } from '../db/types';
 import {
   buildWeekBudget,
   fmtKcal,
   planBigDay,
   weekDayTotals,
+  type Assumption,
   type DayTotal,
 } from '../lib/nutrition';
-import { formatDate, todayLocalDate } from '../lib/dates';
-import { Card, Chip, EmptyState, Screen, SectionTitle, TextInput, TopBar, cx } from '../components/ui';
+import { formatDate, formatDateShort, todayLocalDate } from '../lib/dates';
+import { Stepper } from '../components/Stepper';
+import {
+  Button,
+  Card,
+  Chip,
+  EmptyState,
+  Screen,
+  SectionTitle,
+  Sheet,
+  TextInput,
+  TopBar,
+  cx,
+} from '../components/ui';
 import { ChevronLeft } from '../components/icons';
 
 const DAY_INITIALS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
@@ -22,6 +36,8 @@ export function FuelWeek() {
 
   const settings = useLiveQuery(() => getSettings(), [], undefined);
   const logs = useLiveQuery(() => getLogsForWeekOf(today), [today], undefined);
+  const overrides = useLiveQuery(() => getDayOverridesForWeekOf(today), [today], undefined);
+  const [ruling, setRuling] = useState<DayTotal | null>(null);
 
   const back = (
     <button
@@ -33,7 +49,7 @@ export function FuelWeek() {
     </button>
   );
 
-  if (!settings || !logs) {
+  if (!settings || !logs || !overrides) {
     return (
       <Screen>
         <TopBar title="Semana" left={back} />
@@ -54,8 +70,13 @@ export function FuelWeek() {
     );
   }
 
-  const budget = buildWeekBudget(logs, target, today);
-  const days = weekDayTotals(logs, today);
+  const assumption: Assumption = {
+    kcal: settings.assumedDayKcal ?? null,
+    targetKcal: target,
+    overrides,
+  };
+  const budget = buildWeekBudget(logs, target, today, assumption);
+  const days = weekDayTotals(logs, today, assumption);
   const daysRemaining = budget.daysLeft + 1;
   // Headroom above the target so its marker never lands on the right edge,
   // where the rounded corner would swallow it on a week with no big day.
@@ -137,6 +158,21 @@ export function FuelWeek() {
             ? 'Comiste menos de lo planeado hasta acá. Ese margen es tuyo: gastalo cuando lo necesites en vez de perderlo.'
             : 'Comiste más de lo planeado hasta acá. Se reparte entre los días que quedan, no hay nada que compensar de golpe.'}
         </p>
+
+        {/*
+          The assumption is load-bearing for every number above it, so it says
+          so here rather than only as a chip further down the page. A week that
+          silently invented 5.800 kcal would be worse than one that read the
+          gaps as zero.
+        */}
+        {budget.assumedDays.length > 0 ? (
+          <p className="mt-2 rounded-lg bg-gold/10 px-2.5 py-2 text-[11px] leading-snug text-gold">
+            {budget.assumedDays.length === 1
+              ? `Falta el registro del ${formatDateShort(budget.assumedDays[0].localDate)}, así que se cuenta en ${fmtKcal(budget.assumedDays[0].kcal)} kcal.`
+              : `Faltan ${budget.assumedDays.length} días sin registrar, así que se cuentan asumidos: ${fmtKcal(budget.assumedKcal)} kcal que no están anotadas.`}{' '}
+            Tocá el día para cambiarlo.
+          </p>
+        ) : null}
       </Card>
 
       {/* Days ----------------------------------------------------------- */}
@@ -163,9 +199,16 @@ export function FuelWeek() {
             onOpen={() =>
               navigate(day.isToday ? '/fuel' : `/fuel/day/${day.localDate}`)
             }
+            onRule={day.isToday || day.isFuture ? null : () => setRuling(day)}
           />
         ))}
       </Card>
+
+      <p className="mt-1.5 px-1 text-[11px] leading-snug text-faint">
+        Un día pasado sin anotar, o anotado a medias, se cuenta en{' '}
+        {settings.assumedDayKcal ? `${fmtKcal(settings.assumedDayKcal)} kcal` : 'lo que diga el log'}
+        . Tocá el ⋯ de cualquier día para decidirlo a mano.
+      </p>
 
       {/* Planner -------------------------------------------------------- */}
       <SectionTitle>Planificar un día grande</SectionTitle>
@@ -173,6 +216,13 @@ export function FuelWeek() {
         remainingKcal={budget.remainingKcal}
         daysLeft={budget.daysLeft}
         budget={budget}
+      />
+
+      <DayRulingSheet
+        day={ruling}
+        override={ruling ? (overrides.get(ruling.localDate) ?? null) : null}
+        defaultKcal={settings.assumedDayKcal ?? target}
+        onClose={() => setRuling(null)}
       />
     </Screen>
   );
@@ -184,23 +234,27 @@ function DayRow({
   target,
   peak,
   onOpen,
+  onRule,
 }: {
   day: DayTotal;
   initial: string;
   target: number;
   peak: number;
   onOpen: () => void;
+  /** Null on today and on days still ahead, which cannot be ruled on. */
+  onRule: (() => void) | null;
 }) {
   const pct = peak > 0 ? (day.kcal / peak) * 100 : 0;
   const targetPct = peak > 0 ? (target / peak) * 100 : 0;
   const over = day.kcal > target;
 
   return (
+    <div className="flex items-center gap-1">
     <button
       type="button"
       onClick={onOpen}
       disabled={day.isFuture}
-      className="flex w-full items-center gap-2.5 rounded-lg py-0.5 text-left active:bg-raised disabled:active:bg-transparent"
+      className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg py-0.5 text-left active:bg-raised disabled:active:bg-transparent"
     >
       <span
         className={cx(
@@ -212,13 +266,33 @@ function DayRow({
       </span>
 
       <span className="relative h-5 min-w-0 flex-1 overflow-hidden rounded-md bg-raised">
+        {/*
+          An assumed day is hatched rather than solid. It has to read as a
+          different kind of number at a glance, or the chart quietly claims to
+          know something it does not.
+        */}
         <span
           className={cx(
             'absolute inset-y-0 left-0 rounded-md',
-            day.isFuture ? 'bg-line' : over ? 'bg-gold/70' : 'bg-fuel/70',
+            day.isFuture ? 'bg-line' : day.assumed ? 'bg-gold/30' : over ? 'bg-gold/70' : 'bg-fuel/70',
           )}
-          style={{ width: `${Math.min(100, pct)}%` }}
+          style={{
+            width: `${Math.min(100, pct)}%`,
+            ...(day.assumed
+              ? {
+                  backgroundImage:
+                    'repeating-linear-gradient(135deg, var(--color-gold-dim) 0 2px, transparent 2px 6px)',
+                }
+              : null),
+          }}
         />
+        {/* Where the log actually stops, on a day that is being filled in. */}
+        {day.assumed && day.loggedKcal > 0 ? (
+          <span
+            className="absolute inset-y-0 left-0 rounded-md bg-fuel/70"
+            style={{ width: `${Math.min(100, peak > 0 ? (day.loggedKcal / peak) * 100 : 0)}%` }}
+          />
+        ) : null}
         {/* Where the flat daily target sits, so over and under read at a glance. */}
         <span
           className="absolute inset-y-0 w-px bg-fg/30"
@@ -229,13 +303,160 @@ function DayRow({
       <span
         className={cx(
           'tabular w-14 shrink-0 text-right text-xs',
-          day.kcal === 0 ? 'text-faint' : over ? 'text-gold' : 'text-fg',
+          day.kcal === 0 ? 'text-faint' : day.assumed ? 'text-gold' : over ? 'text-gold' : 'text-fg',
         )}
       >
         {day.kcal === 0 ? (day.isFuture ? '—' : '0') : fmtKcal(day.kcal)}
       </span>
 
-      {day.estimatedCount > 0 ? <Chip tone="gold">est</Chip> : null}
+      {day.assumed ? (
+        <Chip tone="gold">{day.assumedByHand ? 'a mano' : 'asumido'}</Chip>
+      ) : day.estimatedCount > 0 ? (
+        <Chip tone="gold">est</Chip>
+      ) : null}
+    </button>
+
+      {onRule ? (
+        <button
+          type="button"
+          onClick={onRule}
+          aria-label={`Cómo contar el ${day.localDate}`}
+          className="flex size-7 shrink-0 items-center justify-center rounded-md text-faint active:bg-raised"
+        >
+          <span className="text-sm leading-none">⋯</span>
+        </button>
+      ) : (
+        <span className="size-7 shrink-0" />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The manual say over one past day.
+ *
+ * Three states rather than a switch, because "leave it alone" and "I really
+ * did only eat that" are different claims and only one of them should survive
+ * a change to the assumed figure in Settings.
+ */
+function DayRulingSheet({
+  day,
+  override,
+  defaultKcal,
+  onClose,
+}: {
+  day: DayTotal | null;
+  override: DayIntakeOverride | null;
+  defaultKcal: number;
+  onClose: () => void;
+}) {
+  const [custom, setCustom] = useState<number | null>(null);
+
+  if (!day) return null;
+
+  const mode = override?.mode ?? 'auto';
+  const kcal = custom ?? override?.kcal ?? defaultKcal;
+
+  async function rule(next: 'auto' | 'logged' | 'assumed', value?: number) {
+    if (!day) return;
+    await setDayOverride(day.localDate, next === 'auto' ? null : next, value ?? null);
+    if (next !== 'assumed') onClose();
+  }
+
+  return (
+    <Sheet open onClose={onClose} title={formatDate(day.localDate)}>
+      <div className="space-y-3">
+        <div className="rounded-xl bg-raised px-3 py-2.5">
+          <p className="text-[10px] font-semibold tracking-widest text-faint uppercase">
+            Anotado ese día
+          </p>
+          <p className="tabular mt-0.5 text-sm">
+            <span className="text-lg font-semibold text-fuel">{fmtKcal(day.loggedKcal)}</span>
+            <span className="text-xs text-muted">
+              {' '}
+              kcal en {day.logCount} {day.logCount === 1 ? 'entrada' : 'entradas'}
+            </span>
+          </p>
+          {day.assumed ? (
+            <p className="mt-1 text-[11px] leading-snug text-gold">
+              La semana lo está contando en {fmtKcal(day.kcal)} kcal.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="space-y-1.5">
+          <RuleOption
+            active={mode === 'auto'}
+            title="Automático"
+            body="Si el día quedó muy por debajo del objetivo, se asume. Si no, vale lo anotado."
+            onClick={() => void rule('auto')}
+          />
+          <RuleOption
+            active={mode === 'logged'}
+            title="Vale lo anotado"
+            body="Ese día comí eso y nada más. No lo rellenes aunque parezca poco."
+            onClick={() => void rule('logged')}
+          />
+          <RuleOption
+            active={mode === 'assumed'}
+            title="No lo anoté"
+            body="Contalo asumido, con el número de abajo."
+            onClick={() => void rule('assumed', kcal)}
+          />
+        </div>
+
+        {mode === 'assumed' ? (
+          <>
+            <Stepper
+              label="Cuánto asumir"
+              value={kcal}
+              onChange={setCustom}
+              step={50}
+              min={0}
+              max={8000}
+              suffix="kcal"
+              tone="iron"
+            />
+            <Button
+              variant="primary"
+              className="w-full"
+              onClick={() => {
+                void rule('assumed', kcal).then(onClose);
+              }}
+            >
+              Guardar
+            </Button>
+          </>
+        ) : null}
+      </div>
+    </Sheet>
+  );
+}
+
+function RuleOption({
+  active,
+  title,
+  body,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  body: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cx(
+        'w-full rounded-xl border px-3 py-2.5 text-left',
+        active ? 'border-fuel/50 bg-fuel/10' : 'border-line bg-raised active:bg-line',
+      )}
+    >
+      <span className={cx('block text-sm font-medium', active ? 'text-fuel' : 'text-fg')}>
+        {title}
+      </span>
+      <span className="mt-0.5 block text-[11px] leading-snug text-faint">{body}</span>
     </button>
   );
 }

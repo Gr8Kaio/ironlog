@@ -310,12 +310,12 @@ export function SettingsScreen() {
           </Button>
           <p className="mt-1.5 text-[11px] text-faint">
             {notifyState === 'granted'
-              ? 'Notifications are on.'
+              ? 'Notifications are on. The service worker raises them too, so a rest that ends while the app is in the background usually still alerts — but iOS has no scheduled-notification API, so a long rest with the app fully evicted can only be caught by the beep.'
               : notifyState === 'denied'
                 ? 'Denied. The beep still fires.'
                 : notifyState === 'unsupported'
                   ? 'This browser has no Notification API. The beep still fires.'
-                  : 'On iPhone this only works once IronLog is added to the home screen, and never while Safari is in the background. The beep is the reliable alert.'}
+                  : 'On iPhone this only works once IronLog is added to the home screen. The beep is the alert that never misses: it is scheduled into the audio graph, so it sounds with the screen off.'}
           </p>
         </div>
       </Card>

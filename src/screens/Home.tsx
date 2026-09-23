@@ -6,6 +6,7 @@ import {
   getActiveWorkout,
   getHistory,
   getLogsForDate,
+  getDayOverridesForWeekOf,
   getLogsForWeekOf,
   getNextScheduledDay,
   getPersonalRecords,
@@ -25,6 +26,7 @@ import {
   weekStart,
 } from '../lib/dates';
 import {
+  assumptionOf,
   buildWeekBudget,
   dayAllowanceKcal,
   fmtKcal,
@@ -283,12 +285,13 @@ function FuelCard() {
   const settings = useLiveQuery(() => getSettings(), [], undefined);
   const logs = useLiveQuery(() => getLogsForDate(today), [today], undefined);
   const weekLogs = useLiveQuery(() => getLogsForWeekOf(today), [today], undefined);
+  const overrides = useLiveQuery(() => getDayOverridesForWeekOf(today), [today], undefined);
 
-  if (!settings || !logs || !weekLogs) return null;
+  if (!settings || !logs || !weekLogs || !overrides) return null;
   const target = settings.kcalTarget ?? 0;
   if (target <= 0) return null;
 
-  const budget = buildWeekBudget(weekLogs, target, today);
+  const budget = buildWeekBudget(weekLogs, target, today, assumptionOf(settings, target, overrides));
   const allowance = dayAllowanceKcal(target, budget, settings.weeklyBudgetEnabled);
   const eaten = totalMacros(logs);
   const remaining = allowance - eaten.kcal;

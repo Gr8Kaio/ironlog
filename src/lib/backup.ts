@@ -1,6 +1,7 @@
 import { db, DEFAULT_SETTINGS, getSettings, updateSettings } from '../db/db';
 import type {
   BodyMetric,
+  DayIntakeOverride,
   Exercise,
   Food,
   FoodLog,
@@ -21,11 +22,12 @@ import { epley1RM, paceSecPerKm, setLoad } from './calc';
 import { todayLocalDate } from './dates';
 
 /**
- * 2 added the fuel tables, 3 the water log. An older file still imports (older
- * is always readable); a newer one refuses to import into a build that predates
- * it, which is the point — it would silently drop what it cannot represent.
+ * 2 added the fuel tables, 3 the water log, 4 the rulings on days you did not
+ * log. An older file still imports (older is always readable); a newer one
+ * refuses to import into a build that predates it, which is the point — it
+ * would silently drop what it cannot represent.
  */
-export const BACKUP_VERSION = 3;
+export const BACKUP_VERSION = 4;
 
 export interface BackupPayload {
   version: number;
@@ -45,6 +47,7 @@ export interface BackupPayload {
   foods: Food[];
   foodLogs: FoodLog[];
   waterLogs: WaterLog[];
+  dayOverrides: DayIntakeOverride[];
 }
 
 export async function buildBackup(): Promise<BackupPayload> {
@@ -63,6 +66,7 @@ export async function buildBackup(): Promise<BackupPayload> {
     foods,
     foodLogs,
     waterLogs,
+    dayOverrides,
   ] = await Promise.all([
     getSettings(),
     db.exercises.toArray(),
@@ -78,6 +82,7 @@ export async function buildBackup(): Promise<BackupPayload> {
     db.foods.toArray(),
     db.foodLogs.toArray(),
     db.waterLogs.toArray(),
+    db.dayOverrides.toArray(),
   ]);
 
   return {
@@ -98,6 +103,7 @@ export async function buildBackup(): Promise<BackupPayload> {
     foods,
     foodLogs,
     waterLogs,
+    dayOverrides,
   };
 }
 
@@ -134,7 +140,17 @@ const TABLES = [
   'foods',
   'foodLogs',
   'waterLogs',
+  'dayOverrides',
 ] as const;
+
+/**
+ * Which field is a table's primary key. Everything is keyed by `id` except the
+ * day rulings, which are keyed by the day: there is only ever one per date, so
+ * re-importing a file updates the ruling instead of duplicating it.
+ */
+const PRIMARY_KEY: Partial<Record<(typeof TABLES)[number], string>> = {
+  dayOverrides: 'localDate',
+};
 
 export function parseBackup(text: string): BackupPayload {
   let raw: unknown;
@@ -191,11 +207,14 @@ export async function importBackup(
     }
 
     for (const name of present) {
-      const rows = payload[name] as { id: string }[];
+      const rows = payload[name] as unknown as Record<string, unknown>[];
       const table = db.table(name);
-      const valid = rows.filter((row) => row && typeof row.id === 'string');
+      const key = PRIMARY_KEY[name] ?? 'id';
+      const valid = rows.filter((row) => row && typeof row[key] === 'string');
       if (valid.length !== rows.length) {
-        report.warnings.push(`${rows.length - valid.length} rows in ${name} had no id and were dropped.`);
+        report.warnings.push(
+          `${rows.length - valid.length} rows in ${name} had no ${key} and were dropped.`,
+        );
       }
 
       if (mode === 'replace') {
@@ -205,7 +224,7 @@ export async function importBackup(
       }
 
       const existing = new Set((await table.toCollection().primaryKeys()) as string[]);
-      const fresh = valid.filter((row) => !existing.has(row.id));
+      const fresh = valid.filter((row) => !existing.has(row[key] as string));
       await table.bulkPut(fresh);
       report.added[name] = fresh.length;
       report.skipped[name] = valid.length - fresh.length;

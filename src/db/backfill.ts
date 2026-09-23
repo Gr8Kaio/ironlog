@@ -1,4 +1,6 @@
 import { db } from './db';
+import type { Exercise, SideMode } from './types';
+import { buildExercises } from './seed';
 import { recomputeExercisePrs } from '../lib/prs';
 
 /**
@@ -45,4 +47,74 @@ export async function backfillBodyweightSets(): Promise<number> {
   }
 
   return stale.length;
+}
+
+// ------------------------------------------------------- the shipped library
+
+/**
+ * Side modes for exercises this build did not ship, matched on name.
+ *
+ * Custom rows have no slug to match on, so the name is all there is. It only
+ * ever fills a blank — a row whose `sideMode` has been set, to a value or
+ * explicitly to none, is never touched.
+ */
+const CUSTOM_SIDE_MODES: [name: string, mode: SideMode][] = [
+  ['single arm triceps pushdown', 'perSide'],
+  ['unilateral leg curl', 'perSide'],
+  ['bayesian bicep curl', 'perSide'],
+  ['pull over', 'both'],
+  ['rear delt flies', 'both'],
+  ['remo t', 'both'],
+];
+
+/** The generic chest press, now split into the upright and the lying machine. */
+const GENERIC_CHEST_PRESS = 'seed-chest-press-machine';
+const UPRIGHT_CHEST_PRESS = 'seed-chest-press-machine-upright';
+
+/**
+ * Brings a library that was seeded by an earlier build up to this one.
+ *
+ * `seedIfEmpty` only fires on a device with nothing on it, so without this an
+ * exercise added to the shipped list would never reach an install that has
+ * history — which is every install that matters.
+ *
+ * Every step below is a no-op on its second run.
+ */
+export async function migrateExerciseLibrary(): Promise<void> {
+  const existing = await db.exercises.toArray();
+  if (existing.length === 0) return; // A fresh device: `seedIfEmpty` owns this.
+
+  const byId = new Map(existing.map((e) => [e.id, e]));
+  const now = Date.now();
+
+  // 1. Anything shipped that this library has never seen.
+  const missing = buildExercises(now).filter((e) => !byId.has(e.id));
+  if (missing.length > 0) await db.exercises.bulkAdd(missing);
+
+  // 2. Fill in side modes, on shipped rows you have not edited and on custom
+  //    rows by name. `undefined` is "never asked"; `null` is "asked, and it
+  //    does not apply", which is an answer and is left alone.
+  const shipped = new Map(buildExercises(now).map((e) => [e.id, e]));
+  const stamped: Exercise[] = [];
+  for (const exercise of existing) {
+    if (exercise.sideMode !== undefined) continue;
+    const fromSeed = shipped.get(exercise.id)?.sideMode ?? null;
+    const fromName =
+      CUSTOM_SIDE_MODES.find(([name]) => name === exercise.name.trim().toLowerCase())?.[1] ?? null;
+    const mode = fromSeed ?? fromName;
+    if (mode) stamped.push({ ...exercise, sideMode: mode });
+  }
+  if (stamped.length > 0) await db.exercises.bulkPut(stamped);
+
+  // 3. The chest press split. Plans pointing at the entry that could not say
+  //    which machine it meant move to the upright one, and the ambiguous row
+  //    is archived rather than deleted: it still has your logged sets on it,
+  //    and archiving only takes it out of the pickers.
+  if (byId.has(GENERIC_CHEST_PRESS) && !byId.get(GENERIC_CHEST_PRESS)!.isArchived) {
+    const slots = await db.routineExercises.where('exerciseId').equals(GENERIC_CHEST_PRESS).toArray();
+    await db.routineExercises.bulkPut(
+      slots.map((slot) => ({ ...slot, exerciseId: UPRIGHT_CHEST_PRESS })),
+    );
+    await db.exercises.update(GENERIC_CHEST_PRESS, { isArchived: true, updatedAt: now });
+  }
 }

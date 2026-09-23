@@ -6,7 +6,7 @@
  * big meal is something to *budget for*, not a day to write off. Every number
  * here reads a week at a time and reports what is left per remaining day.
  */
-import type { Food, FoodLog, MealSlot, Portion } from '../db/types';
+import type { DayIntakeOverride, Food, FoodLog, MealSlot, Portion, Settings } from '../db/types';
 // Explicit extension so scripts/check-math.ts can load this module in Node.
 import { addDaysToLocalDate, daysBetween, todayLocalDate, weekStart } from './dates.ts';
 
@@ -110,6 +110,128 @@ export function energyMismatch(
   return drift > ENERGY_TOLERANCE ? Math.round(implied) : null;
 }
 
+// ------------------------------------------------------- days you did not log
+
+/**
+ * Below this share of the daily target, a *past* day is read as one you
+ * stopped logging rather than one you barely ate.
+ *
+ * Half a day's target is a deliberately low bar. A real light day — sick, or
+ * a genuine fast — clears it from below and gets filled in, which is why the
+ * override exists: say `logged` on that day and it is left exactly as written.
+ * Set any higher and ordinary small days would be overwritten; any lower and
+ * the "I logged breakfast and forgot the rest" day, which is the common one,
+ * would slip through counted as 500 kcal.
+ */
+export const UNDER_LOG_FLOOR = 0.5;
+
+/**
+ * The assumption as the app configures it. One place, so the week view, the
+ * day view and the home card can never be reading different rules.
+ */
+export function assumptionOf(
+  settings: Pick<Settings, 'assumedDayKcal'>,
+  targetKcal: number,
+  overrides?: Map<string, DayIntakeOverride> | null,
+): Assumption {
+  return { kcal: settings.assumedDayKcal ?? null, targetKcal, overrides };
+}
+
+/** Everything `resolveWeek` needs to decide what an unwritten day cost. */
+export interface Assumption {
+  /** `settings.assumedDayKcal`. Null switches the whole mechanism off. */
+  kcal: number | null;
+  targetKcal: number;
+  /** Your explicit rulings, keyed by `localDate`. */
+  overrides?: Map<string, DayIntakeOverride> | null;
+}
+
+export interface DayTotal {
+  localDate: string;
+  /** What the week counts for this day: the assumption when one applies. */
+  kcal: number;
+  /** What is actually written down, always. */
+  loggedKcal: number;
+  proteinG: number;
+  estimatedCount: number;
+  logCount: number;
+  /** True when `kcal` is an assumption rather than the log. */
+  assumed: boolean;
+  /** True when the assumption came from an explicit ruling, not the rule. */
+  assumedByHand: boolean;
+  isToday: boolean;
+  isFuture: boolean;
+}
+
+/**
+ * The seven days of the week containing `today`, oldest first, each already
+ * resolved to what the week should count it as.
+ *
+ * Both the budget and the day-by-day list read this one function, so the bar
+ * chart and the number above it can never tell different stories.
+ *
+ * Today is never assumed: the day is not over, and filling it in would make
+ * every morning open on a day that has already overspent.
+ */
+export function resolveWeek(
+  logs: FoodLog[],
+  today: string,
+  assumption?: Assumption | null,
+): DayTotal[] {
+  const start = weekStart(today);
+  const out: DayTotal[] = [];
+
+  for (let i = 0; i < 7; i++) {
+    const localDate = addDaysToLocalDate(start, i);
+    const dayLogs = logs.filter((l) => l.localDate === localDate);
+    const loggedKcal = dayLogs.reduce((sum, l) => sum + l.kcal, 0);
+    const isToday = localDate === today;
+    const isFuture = localDate > today;
+
+    const day: DayTotal = {
+      localDate,
+      kcal: loggedKcal,
+      loggedKcal,
+      proteinG: dayLogs.reduce((sum, l) => sum + l.proteinG, 0),
+      estimatedCount: dayLogs.filter((l) => l.estimated).length,
+      logCount: dayLogs.length,
+      assumed: false,
+      assumedByHand: false,
+      isToday,
+      isFuture,
+    };
+
+    if (!isToday && !isFuture && assumption) {
+      const override = assumption.overrides?.get(localDate) ?? null;
+      const fallback = assumption.kcal;
+
+      if (override?.mode === 'logged') {
+        // Ruled on by hand: the log stands, however thin it looks.
+      } else if (override?.mode === 'assumed') {
+        const kcal = override.kcal ?? fallback;
+        if (kcal !== null && kcal !== undefined) {
+          day.kcal = kcal;
+          day.assumed = true;
+          day.assumedByHand = true;
+        }
+      } else if (
+        fallback !== null &&
+        loggedKcal < assumption.targetKcal * UNDER_LOG_FLOOR &&
+        // Never let the assumption *lower* a day. It is a floor for a day you
+        // did not write down, not a cap on one you did.
+        loggedKcal < fallback
+      ) {
+        day.kcal = fallback;
+        day.assumed = true;
+      }
+    }
+
+    out.push(day);
+  }
+
+  return out;
+}
+
 // --------------------------------------------------------------- the budget
 
 export interface WeekBudget {
@@ -129,22 +251,30 @@ export interface WeekBudget {
   driftKcal: number;
   estimatedCount: number;
   loggedCount: number;
+  /** Past days the week is filling in rather than reading from the log. */
+  assumedDays: DayTotal[];
+  /** The part of `consumedKcal` that is an assumption, not a log. */
+  assumedKcal: number;
 }
 
 export function buildWeekBudget(
   logs: FoodLog[],
   kcalTarget: number,
   today = todayLocalDate(),
+  assumption?: Assumption | null,
 ): WeekBudget {
   const start = weekStart(today);
   const inWeek = logs.filter(
     (l) => l.localDate >= start && l.localDate <= addDaysToLocalDate(start, 6),
   );
 
-  const consumedKcal = inWeek.reduce((sum, l) => sum + l.kcal, 0);
-  const consumedBeforeTodayKcal = inWeek
-    .filter((l) => l.localDate < today)
-    .reduce((sum, l) => sum + l.kcal, 0);
+  const days = resolveWeek(inWeek, today, assumption);
+  const assumedDays = days.filter((d) => d.assumed);
+
+  const consumedKcal = days.reduce((sum, d) => sum + d.kcal, 0);
+  const consumedBeforeTodayKcal = days
+    .filter((d) => d.localDate < today)
+    .reduce((sum, d) => sum + d.kcal, 0);
   // daysBetween counts whole days, so today is elapsed the moment it starts.
   const daysElapsed = Math.min(7, Math.max(1, daysBetween(start, today) + 1));
   const daysLeft = 7 - daysElapsed;
@@ -164,6 +294,8 @@ export function buildWeekBudget(
     driftKcal: consumedKcal - kcalTarget * daysElapsed,
     estimatedCount: inWeek.filter((l) => l.estimated).length,
     loggedCount: inWeek.length,
+    assumedDays,
+    assumedKcal: assumedDays.reduce((sum, d) => sum + (d.kcal - d.loggedKcal), 0),
   };
 }
 
@@ -188,32 +320,13 @@ export function planBigDay(budget: WeekBudget, dayKcal: number): number | null {
   return (budget.remainingKcal - dayKcal) / otherDays;
 }
 
-export interface DayTotal {
-  localDate: string;
-  kcal: number;
-  proteinG: number;
-  estimatedCount: number;
-  isToday: boolean;
-  isFuture: boolean;
-}
-
 /** The seven days of the week containing `today`, oldest first. */
-export function weekDayTotals(logs: FoodLog[], today: string): DayTotal[] {
-  const start = weekStart(today);
-  const out: DayTotal[] = [];
-  for (let i = 0; i < 7; i++) {
-    const localDate = addDaysToLocalDate(start, i);
-    const dayLogs = logs.filter((l) => l.localDate === localDate);
-    out.push({
-      localDate,
-      kcal: dayLogs.reduce((sum, l) => sum + l.kcal, 0),
-      proteinG: dayLogs.reduce((sum, l) => sum + l.proteinG, 0),
-      estimatedCount: dayLogs.filter((l) => l.estimated).length,
-      isToday: localDate === today,
-      isFuture: localDate > today,
-    });
-  }
-  return out;
+export function weekDayTotals(
+  logs: FoodLog[],
+  today: string,
+  assumption?: Assumption | null,
+): DayTotal[] {
+  return resolveWeek(logs, today, assumption);
 }
 
 // ------------------------------------------------------------------ display

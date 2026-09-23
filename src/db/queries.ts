@@ -1,5 +1,7 @@
 import { db } from './db';
 import type {
+  DayIntakeMode,
+  DayIntakeOverride,
   Exercise,
   Food,
   FoodLog,
@@ -482,6 +484,47 @@ export async function getLogsForWeekOf(localDate: string): Promise<FoodLog[]> {
     .where('localDate')
     .between(start, addDaysToLocalDate(start, 6), true, true)
     .toArray();
+}
+
+/**
+ * Everything eaten since `fromDate`, for ranking meal ideas against what you
+ * actually eat rather than against the library's own row for it.
+ */
+export async function getLogsSince(fromDate: string): Promise<FoodLog[]> {
+  return db.foodLogs.where('localDate').aboveOrEqual(fromDate).toArray();
+}
+
+/**
+ * Your rulings on what the unlogged days of this week cost, keyed by day.
+ *
+ * A Map rather than a list because every reader wants one day at a time, and
+ * because it makes "no ruling" the cheap, ordinary case.
+ */
+export async function getDayOverridesForWeekOf(
+  localDate: string,
+): Promise<Map<string, DayIntakeOverride>> {
+  const start = weekStart(localDate);
+  const rows = await db.dayOverrides
+    .where('localDate')
+    .between(start, addDaysToLocalDate(start, 6), true, true)
+    .toArray();
+  return new Map(rows.map((row) => [row.localDate, row]));
+}
+
+/**
+ * Rule on a day, or clear the ruling by passing `null` and hand the day back
+ * to the automatic rule.
+ */
+export async function setDayOverride(
+  localDate: string,
+  mode: DayIntakeMode | null,
+  kcal?: number | null,
+): Promise<void> {
+  if (mode === null) {
+    await db.dayOverrides.delete(localDate);
+    return;
+  }
+  await db.dayOverrides.put({ localDate, mode, kcal: kcal ?? null, updatedAt: Date.now() });
 }
 
 /**

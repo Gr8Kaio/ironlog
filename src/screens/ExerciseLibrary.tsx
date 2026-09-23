@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, newId } from '../db/db';
-import type { Equipment, Exercise, MuscleGroup } from '../db/types';
-import { EQUIPMENT, MUSCLE_GROUPS } from '../db/types';
-import { EQUIPMENT_LABEL, MUSCLE_LABEL } from '../lib/labels';
+import type { Equipment, Exercise, MuscleGroup, SideMode } from '../db/types';
+import { EQUIPMENT, MUSCLE_GROUPS, SIDE_MODES } from '../db/types';
+import { EQUIPMENT_LABEL, MUSCLE_LABEL, SIDE_MODE_LABEL, SIDE_MODE_SHORT } from '../lib/labels';
 import { Stepper } from '../components/Stepper';
 import {
   Button,
@@ -109,6 +109,7 @@ export function ExerciseLibrary() {
                     </span>
                     <span className="block text-[11px] text-faint">
                       {EQUIPMENT_LABEL[exercise.equipment]} · {exercise.incrementKg} kg steps
+                      {exercise.sideMode ? ` · ${SIDE_MODE_SHORT[exercise.sideMode]}` : ''}
                     </span>
                   </button>
                   <button
@@ -144,6 +145,7 @@ function ExerciseSheet({ exercise, onClose }: { exercise: Exercise | null; onClo
   const [muscleGroup, setMuscleGroup] = useState<MuscleGroup>(exercise?.muscleGroup ?? 'chest');
   const [equipment, setEquipment] = useState<Equipment>(exercise?.equipment ?? 'barbell');
   const [increment, setIncrement] = useState(exercise?.incrementKg ?? 2.5);
+  const [sideMode, setSideMode] = useState<SideMode | ''>(exercise?.sideMode ?? '');
   const [notes, setNotes] = useState(exercise?.notes ?? '');
 
   const usageCount = useLiveQuery(
@@ -162,6 +164,7 @@ function ExerciseSheet({ exercise, onClose }: { exercise: Exercise | null; onClo
         muscleGroup,
         equipment,
         incrementKg: increment,
+        sideMode: sideMode === '' ? null : sideMode,
         notes: notes.trim() || undefined,
         updatedAt: now,
       });
@@ -172,6 +175,7 @@ function ExerciseSheet({ exercise, onClose }: { exercise: Exercise | null; onClo
         muscleGroup,
         equipment,
         incrementKg: increment,
+        sideMode: sideMode === '' ? null : sideMode,
         isCustom: true,
         isArchived: false,
         notes: notes.trim() || undefined,
@@ -231,6 +235,20 @@ function ExerciseSheet({ exercise, onClose }: { exercise: Exercise | null; onClo
           max={25}
           suffix="kg — drives the weight stepper"
         />
+
+        <Field label="Una mano o las dos">
+          <Select
+            value={sideMode}
+            onChange={(e) => setSideMode(e.target.value as SideMode | '')}
+          >
+            <option value="">No corresponde / no lo aclares</option>
+            {SIDE_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {SIDE_MODE_LABEL[mode]}
+              </option>
+            ))}
+          </Select>
+        </Field>
 
         <Field label="Notes">
           <TextInput

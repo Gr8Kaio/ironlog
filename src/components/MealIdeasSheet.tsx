@@ -1,9 +1,17 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, newId } from '../db/db';
 import type { FoodLog, MealSlot } from '../db/types';
-import { touchFood } from '../db/queries';
+import { getLogsSince, touchFood } from '../db/queries';
 import { MEAL_LABEL, fmtAmount, fmtGrams, fmtKcal } from '../lib/nutrition';
-import { ideasFor, mealTips, tiltTarget, type MealTarget, type ScaledIdea } from '../lib/mealIdeas';
+import { addDaysToLocalDate } from '../lib/dates';
+import {
+  eatenStems,
+  ideasFor,
+  mealTips,
+  tiltTarget,
+  type MealTarget,
+  type ScaledIdea,
+} from '../lib/mealIdeas';
 import { phaseBadge, phaseCopy, type TrainingContext } from '../lib/trainingFuel';
 import { Button, Card, Chip, Sheet } from './ui';
 
@@ -22,11 +30,19 @@ export function MealIdeasSheet({
   onClose: () => void;
 }) {
   const foods = useLiveQuery(() => db.foods.toArray(), [], undefined);
+  // Six weeks: long enough that a week off logging does not erase your diet,
+  // short enough that it is still your diet and not last season's.
+  const recentLogs = useLiveQuery(
+    () => getLogsSince(addDaysToLocalDate(localDate, -42)),
+    [localDate],
+    undefined,
+  );
   // Everything below reads the tilted target: the plates are ranked against the
   // shape the moment calls for, and the header shows the same number, so the
   // ordering is never something that happens off-screen.
   const aimed = target ? tiltTarget(target, ctx.phase) : null;
-  const ideas = meal && aimed && foods ? ideasFor(meal, foods, aimed, ctx.phase) : [];
+  const eaten = recentLogs ? eatenStems(recentLogs) : null;
+  const ideas = meal && aimed && foods ? ideasFor(meal, foods, aimed, ctx.phase, eaten) : [];
   const tilted =
     target !== null &&
     aimed !== null &&

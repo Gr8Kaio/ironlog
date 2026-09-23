@@ -4,6 +4,7 @@ import type {
   Equipment,
   Exercise,
   MuscleGroup,
+  SideMode,
   Routine,
   RoutineDay,
   RoutineExercise,
@@ -21,7 +22,16 @@ import { recomputeAllPrs } from '../lib/prs';
  * seeded independently then agree on what "Back Squat" is, so an export from
  * one merges into the other without duplicating the whole library.
  */
-type SeedExercise = [name: string, muscle: MuscleGroup, equipment: Equipment, increment: number];
+type SeedExercise = [
+  name: string,
+  muscle: MuscleGroup,
+  equipment: Equipment,
+  increment: number,
+  /** Only where the exercise is genuinely ambiguous about it. See `SideMode`. */
+  sideMode?: SideMode,
+  /** Shown above the steppers mid-set, so it is where a setup cue belongs. */
+  notes?: string,
+];
 
 const LIBRARY: SeedExercise[] = [
   // barbell
@@ -43,14 +53,14 @@ const LIBRARY: SeedExercise[] = [
   ['Dumbbell Bench Press', 'chest', 'dumbbell', 2],
   ['Incline Dumbbell Press', 'chest', 'dumbbell', 2],
   ['Dumbbell Shoulder Press', 'shoulders', 'dumbbell', 2],
-  ['Dumbbell Row', 'back', 'dumbbell', 2],
+  ['Dumbbell Row', 'back', 'dumbbell', 2, 'perSide'],
   ['Lateral Raise', 'shoulders', 'dumbbell', 1],
   ['Rear Delt Fly', 'shoulders', 'dumbbell', 1],
   ['Dumbbell Curl', 'biceps', 'dumbbell', 1],
   ['Hammer Curl', 'biceps', 'dumbbell', 1],
   ['Dumbbell Fly', 'chest', 'dumbbell', 2],
-  ['Bulgarian Split Squat', 'quads', 'dumbbell', 2],
-  ['Walking Lunge', 'quads', 'dumbbell', 2],
+  ['Bulgarian Split Squat', 'quads', 'dumbbell', 2, 'perSide'],
+  ['Walking Lunge', 'quads', 'dumbbell', 2, 'perSide'],
   ['Dumbbell Romanian Deadlift', 'hamstrings', 'dumbbell', 2],
   ['Goblet Squat', 'quads', 'dumbbell', 2],
   ['Skull Crusher', 'triceps', 'dumbbell', 1],
@@ -60,7 +70,13 @@ const LIBRARY: SeedExercise[] = [
   ['Leg Extension', 'quads', 'machine', 2.5],
   ['Lying Leg Curl', 'hamstrings', 'machine', 2.5],
   ['Seated Leg Curl', 'hamstrings', 'machine', 2.5],
-  ['Chest Press Machine', 'chest', 'machine', 2.5],
+  // Two machines, two entries. One "Chest Press Machine" could not say which
+  // of them a plan meant, and the two are different enough in shoulder angle
+  // that the loads never matched from week to week.
+  ['Chest Press Machine (upright)', 'chest', 'machine', 2.5, undefined,
+    'La vertical: sentado con el torso derecho, empujas hacia adelante.'],
+  ['Chest Press Machine (lying)', 'chest', 'machine', 2.5, undefined,
+    'La acostada: espalda apoyada mirando arriba, empujas hacia el techo.'],
   ['Shoulder Press Machine', 'shoulders', 'machine', 2.5],
   ['Lat Pulldown', 'back', 'machine', 2.5],
   ['Seated Cable Row', 'back', 'machine', 2.5],
@@ -69,13 +85,13 @@ const LIBRARY: SeedExercise[] = [
   ['Seated Calf Raise', 'calves', 'machine', 2.5],
   ['Assisted Pull-up', 'back', 'machine', 2.5],
   // cable
-  ['Cable Fly', 'chest', 'cable', 2.5],
-  ['Triceps Pushdown', 'triceps', 'cable', 2.5],
-  ['Overhead Cable Extension', 'triceps', 'cable', 2.5],
-  ['Cable Lateral Raise', 'shoulders', 'cable', 2.5],
-  ['Face Pull', 'shoulders', 'cable', 2.5],
-  ['Cable Curl', 'biceps', 'cable', 2.5],
-  ['Cable Crunch', 'core', 'cable', 2.5],
+  ['Cable Fly', 'chest', 'cable', 2.5, 'both'],
+  ['Triceps Pushdown', 'triceps', 'cable', 2.5, 'both'],
+  ['Overhead Cable Extension', 'triceps', 'cable', 2.5, 'both'],
+  ['Cable Lateral Raise', 'shoulders', 'cable', 2.5, 'perSide'],
+  ['Face Pull', 'shoulders', 'cable', 2.5, 'both'],
+  ['Cable Curl', 'biceps', 'cable', 2.5, 'both'],
+  ['Cable Crunch', 'core', 'cable', 2.5, 'both'],
   // bodyweight
   ['Pull-up', 'back', 'bodyweight', 1.25],
   ['Chin-up', 'back', 'bodyweight', 1.25],
@@ -100,13 +116,15 @@ export const slugify = (name: string): string =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 
-function buildExercises(now: number): Exercise[] {
-  return LIBRARY.map(([name, muscleGroup, equipment, incrementKg]) => ({
+export function buildExercises(now: number): Exercise[] {
+  return LIBRARY.map(([name, muscleGroup, equipment, incrementKg, sideMode, notes]) => ({
     id: slugify(name),
     name,
     muscleGroup,
     equipment,
     incrementKg,
+    sideMode: sideMode ?? null,
+    notes,
     isCustom: false,
     isArchived: false,
     createdAt: now,
