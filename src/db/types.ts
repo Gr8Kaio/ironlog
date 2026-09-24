@@ -200,6 +200,23 @@ export interface BodyMetric {
   notes?: string;
 }
 
+/**
+ * A progress photo, attached to a weigh-in. Its own table rather than a field
+ * on `BodyMetric`, so the weight list and chart never pull image bytes they
+ * do not show.
+ */
+export interface BodyPhoto {
+  id: string;
+  bodyMetricId: string;
+  /** Copied from the weigh-in, so the gallery can sort and label without a join. */
+  localDate: string;
+  takenAt: number;
+  /** JPEG, already downscaled on the way in. */
+  blob: Blob;
+  width: number;
+  height: number;
+}
+
 // ------------------------------------------------------------------- fuel
 
 export const MEAL_SLOTS = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
@@ -366,4 +383,10 @@ export interface Settings {
   mealSplit: Record<MealSlot, number>;
   /** Daily fluid goal in millilitres. Null hides the tracker entirely. */
   waterTargetMl?: number | null;
+  /**
+   * One-shot data migrations already applied on this device. For changes that
+   * must happen once and then leave you free to undo them by hand, which an
+   * idempotent check could not tell apart from never having run.
+   */
+  migrations?: string[];
 }

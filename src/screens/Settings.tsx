@@ -19,6 +19,7 @@ import {
 import { fmtKg, formatClock } from '../lib/calc';
 import { SURFACE_LABEL } from '../lib/labels';
 import { requestNotificationPermission } from '../hooks/useRestTimer';
+import { warmUpPush } from '../lib/push';
 import { PlateMath } from '../components/PlateMath';
 import { Stepper } from '../components/Stepper';
 import { FuelTargets } from '../components/FuelTargets';
@@ -49,6 +50,7 @@ export function SettingsScreen() {
   const [confirmReset, setConfirmReset] = useState<'seed' | 'empty' | null>(null);
   const [platesOpen, setPlatesOpen] = useState(false);
   const [notifyState, setNotifyState] = useState<string | null>(null);
+  const [pushReady, setPushReady] = useState<boolean | null>(null);
 
   const counts = useLiveQuery(async () => {
     const [workouts, sets, runs, metrics] = await Promise.all([
@@ -304,13 +306,18 @@ export function SettingsScreen() {
             onClick={async () => {
               const result = await requestNotificationPermission();
               setNotifyState(result);
+              // Subscribing now, while the tap is fresh, is also what tells us
+              // whether the minimized-app alert can work on this device.
+              if (result === 'granted') setPushReady(await warmUpPush());
             }}
           >
             Enable rest notifications
           </Button>
           <p className="mt-1.5 text-[11px] text-faint">
             {notifyState === 'granted'
-              ? 'Notifications are on. The service worker raises them too, so a rest that ends while the app is in the background usually still alerts — but iOS has no scheduled-notification API, so a long rest with the app fully evicted can only be caught by the beep.'
+              ? pushReady
+                ? 'Notifications are on, and they reach the app minimized: the end of each rest is sent as a push.'
+                : 'Notifications are on, but push could not be set up here, so they only arrive while the app is still running. On iPhone that means installed to the home screen.'
               : notifyState === 'denied'
                 ? 'Denied. The beep still fires.'
                 : notifyState === 'unsupported'

@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Area, AreaChart, CartesianGrid, Tooltip, XAxis, YAxis } from 'recharts';
 import { db, newId } from '../db/db';
-import type { BodyMetric } from '../db/types';
+import type { BodyMetric, BodyPhoto } from '../db/types';
 import { fmtKg } from '../lib/calc';
 import { formatDate, formatDateShort, localDateOf, toEpoch, todayLocalDate } from '../lib/dates';
 import { AXIS_PROPS, CHART, ChartFrame, TooltipBox } from '../components/charts';
 import { Stepper } from '../components/Stepper';
+import { AddPhotoButton, PhotoThumb, PhotoViewer, useBlobUrl } from '../components/BodyPhotos';
+import { addPhoto } from '../lib/photos';
 import {
   Button,
   ConfirmRow,
@@ -17,7 +19,7 @@ import {
   TextInput,
   TopBar,
 } from '../components/ui';
-import { ChevronLeft, PlusIcon } from '../components/icons';
+import { CameraIcon, ChevronLeft, PlusIcon } from '../components/icons';
 
 /** Optional tape measurements, kept out of the way until asked for. */
 const MEASUREMENTS = [
@@ -32,12 +34,30 @@ export function BodyMetrics() {
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<BodyMetric | null>(null);
+  const [viewing, setViewing] = useState<string | null>(null);
 
   const metrics = useLiveQuery(
     () => db.bodyMetrics.orderBy('measuredAt').toArray(),
     [],
     undefined,
   );
+
+  // Oldest first, which is the order the viewer steps through and the one
+  // "Compare" measures against.
+  const photos = useLiveQuery(
+    async () =>
+      (await db.bodyPhotos.toArray()).sort(
+        (a, b) => a.localDate.localeCompare(b.localDate) || a.takenAt - b.takenAt,
+      ),
+    [],
+    [] as BodyPhoto[],
+  );
+  const photoCount = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of photos) counts.set(p.bodyMetricId, (counts.get(p.bodyMetricId) ?? 0) + 1);
+    return counts;
+  }, [photos]);
+  const metricsById = useMemo(() => new Map((metrics ?? []).map((m) => [m.id, m])), [metrics]);
 
   const weightSeries = useMemo(
     () =>
@@ -132,6 +152,30 @@ export function BodyMetrics() {
         </AreaChart>
       </ChartFrame>
 
+      {photos.length > 0 ? (
+        <div className="mt-4">
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <span className="text-xs font-medium tracking-wide text-muted uppercase">Photos</span>
+            <span className="text-[11px] text-faint">{photos.length}</span>
+          </div>
+          {/* Newest first here: the strip is for "how do I look lately". */}
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+            {[...photos].reverse().map((photo) => (
+              <PhotoThumb
+                key={photo.id}
+                blob={photo.blob}
+                onClick={() => setViewing(photo.id)}
+                className="aspect-[3/4] w-24 shrink-0"
+              >
+                <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pt-4 pb-1 text-left text-[10px] font-medium text-white">
+                  {formatDateShort(photo.localDate)}
+                </span>
+              </PhotoThumb>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div className="mt-4 space-y-1.5">
         {[...(metrics ?? [])].reverse().map((metric) => (
           <button
@@ -140,7 +184,15 @@ export function BodyMetrics() {
             onClick={() => setEditing(metric)}
             className="flex w-full items-center gap-3 rounded-xl bg-surface px-3 py-2.5 text-left active:bg-raised"
           >
-            <span className="flex-1 text-sm">{formatDate(metric.localDate)}</span>
+            <span className="flex flex-1 items-center gap-1.5 text-sm">
+              {formatDate(metric.localDate)}
+              {photoCount.get(metric.id) ? (
+                <span className="flex items-center gap-0.5 text-[11px] text-faint">
+                  <CameraIcon className="size-3.5" />
+                  {photoCount.get(metric.id)! > 1 ? photoCount.get(metric.id) : null}
+                </span>
+              ) : null}
+            </span>
             <span className="text-[11px] text-faint">
               {MEASUREMENTS.filter((m) => metric[m.key] != null)
                 .map((m) => `${m.label} ${metric[m.key]}`)
@@ -159,11 +211,23 @@ export function BodyMetrics() {
       {adding || editing ? (
         <MetricSheet
           metric={editing}
+          photos={editing ? photos.filter((p) => p.bodyMetricId === editing.id) : []}
+          onViewPhoto={setViewing}
           fallbackWeight={latest?.weightKg ?? 75}
           onClose={() => {
             setAdding(false);
             setEditing(null);
           }}
+        />
+      ) : null}
+
+      {/* After the sheet, so it opens on top of it when a thumbnail there is tapped. */}
+      {viewing ? (
+        <PhotoViewer
+          photos={photos}
+          startId={viewing}
+          metricsById={metricsById}
+          onClose={() => setViewing(null)}
         />
       ) : null}
     </Screen>
@@ -172,10 +236,15 @@ export function BodyMetrics() {
 
 function MetricSheet({
   metric,
+  photos,
+  onViewPhoto,
   fallbackWeight,
   onClose,
 }: {
   metric: BodyMetric | null;
+  /** Already saved against this entry. */
+  photos: BodyPhoto[];
+  onViewPhoto: (id: string) => void;
   fallbackWeight: number;
   onClose: () => void;
 }) {
@@ -188,8 +257,17 @@ function MetricSheet({
   );
   const [notes, setNotes] = useState(metric?.notes ?? '');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Nothing touches the database until Save, so closing the sheet really is
+  // "never mind", photos included.
+  const [pending, setPending] = useState<File[]>([]);
+  const [removed, setRemoved] = useState<Set<string>>(() => new Set());
+  const [saving, setSaving] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const kept = photos.filter((p) => !removed.has(p.id));
 
   async function save() {
+    setSaving(true);
+    setPhotoError(null);
     const measuredAt = metric?.measuredAt ?? toEpoch(localDate, '07:30');
     const record: BodyMetric = {
       id: metric?.id ?? newId(),
@@ -202,11 +280,29 @@ function MetricSheet({
       ),
     };
     await db.bodyMetrics.put(record);
+    if (removed.size > 0) await db.bodyPhotos.bulkDelete([...removed]);
+    try {
+      for (const file of pending) await addPhoto(record.id, record.localDate, file);
+      // A moved date moves the photos with it, so the gallery stays in order.
+      if (metric && metric.localDate !== localDate) {
+        await db.bodyPhotos.where('bodyMetricId').equals(record.id).modify({ localDate });
+      }
+    } catch (err) {
+      // The weigh-in is saved; say which part was not, and keep the sheet open.
+      setPhotoError(err instanceof Error ? err.message : 'No se pudo guardar la foto.');
+      setSaving(false);
+      return;
+    }
     onClose();
   }
 
   async function remove() {
-    if (metric) await db.bodyMetrics.delete(metric.id);
+    if (metric) {
+      await db.transaction('rw', db.bodyMetrics, db.bodyPhotos, async () => {
+        await db.bodyPhotos.where('bodyMetricId').equals(metric.id).delete();
+        await db.bodyMetrics.delete(metric.id);
+      });
+    }
     onClose();
   }
 
@@ -254,12 +350,42 @@ function MetricSheet({
           </div>
         </div>
 
+        <div>
+          <div className="mb-1.5 text-xs font-medium tracking-wide text-muted uppercase">
+            Photos (optional)
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {kept.map((photo) => (
+              <PhotoThumb
+                key={photo.id}
+                blob={photo.blob}
+                onClick={() => onViewPhoto(photo.id)}
+                className="aspect-[3/4]"
+              >
+                <RemoveBadge onRemove={() => setRemoved((prev) => new Set(prev).add(photo.id))} />
+              </PhotoThumb>
+            ))}
+            {pending.map((file, i) => (
+              <PendingThumb
+                key={`${file.name}-${i}`}
+                file={file}
+                onRemove={() => setPending((prev) => prev.filter((_, j) => j !== i))}
+              />
+            ))}
+            <AddPhotoButton
+              className="aspect-[3/4]"
+              onPick={(files) => setPending((prev) => [...prev, ...files])}
+            />
+          </div>
+          {photoError ? <p className="mt-1.5 text-xs text-danger">{photoError}</p> : null}
+        </div>
+
         <Field label="Notes">
           <TextInput value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
 
-        <Button variant="primary" className="w-full" onClick={save}>
-          Save
+        <Button variant="primary" className="w-full" onClick={save} disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
         </Button>
 
         {metric ? (
@@ -282,5 +408,34 @@ function MetricSheet({
         ) : null}
       </div>
     </Sheet>
+  );
+}
+
+function PendingThumb({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const url = useBlobUrl(file);
+  return (
+    <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-raised">
+      {url ? <img src={url} alt="" className="size-full object-cover" /> : null}
+      <RemoveBadge onRemove={onRemove} />
+    </div>
+  );
+}
+
+/** A span, not a button: it sits inside the thumbnail's own button. */
+function RemoveBadge({ onRemove }: { onRemove: () => void }) {
+  return (
+    <span
+      role="button"
+      aria-label="Remove photo"
+      onClick={(e) => {
+        e.stopPropagation();
+        onRemove();
+      }}
+      className="absolute top-1 right-1 flex size-7 items-center justify-center rounded-full bg-black/60 text-white"
+    >
+      <svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth="2.4">
+        <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+      </svg>
+    </span>
   );
 }

@@ -20,14 +20,16 @@ import { recomputeAllPrs } from './prs';
 import { seedFoodsIfMissing } from '../db/seedFoods';
 import { epley1RM, paceSecPerKm, setLoad } from './calc';
 import { todayLocalDate } from './dates';
+import { photosToRecords, recordToPhoto, type BodyPhotoRecord } from './photos';
 
 /**
  * 2 added the fuel tables, 3 the water log, 4 the rulings on days you did not
- * log. An older file still imports (older is always readable); a newer one
- * refuses to import into a build that predates it, which is the point — it
- * would silently drop what it cannot represent.
+ * log, 5 the weigh-in photos (as data URLs, since JSON has no bytes). An older
+ * file still imports (older is always readable); a newer one refuses to import
+ * into a build that predates it, which is the point — it would silently drop
+ * what it cannot represent.
  */
-export const BACKUP_VERSION = 4;
+export const BACKUP_VERSION = 5;
 
 export interface BackupPayload {
   version: number;
@@ -43,6 +45,7 @@ export interface BackupPayload {
   runs: Run[];
   runIntervals: RunInterval[];
   bodyMetrics: BodyMetric[];
+  bodyPhotos: BodyPhotoRecord[];
   personalRecords: PersonalRecord[];
   foods: Food[];
   foodLogs: FoodLog[];
@@ -62,6 +65,7 @@ export async function buildBackup(): Promise<BackupPayload> {
     runs,
     runIntervals,
     bodyMetrics,
+    bodyPhotos,
     personalRecords,
     foods,
     foodLogs,
@@ -78,6 +82,7 @@ export async function buildBackup(): Promise<BackupPayload> {
     db.runs.toArray(),
     db.runIntervals.toArray(),
     db.bodyMetrics.toArray(),
+    db.bodyPhotos.toArray().then(photosToRecords),
     db.personalRecords.toArray(),
     db.foods.toArray(),
     db.foodLogs.toArray(),
@@ -99,6 +104,7 @@ export async function buildBackup(): Promise<BackupPayload> {
     runs,
     runIntervals,
     bodyMetrics,
+    bodyPhotos,
     personalRecords,
     foods,
     foodLogs,
@@ -137,6 +143,7 @@ const TABLES = [
   'runs',
   'runIntervals',
   'bodyMetrics',
+  'bodyPhotos',
   'foods',
   'foodLogs',
   'waterLogs',
@@ -207,7 +214,13 @@ export async function importBackup(
     }
 
     for (const name of present) {
-      const rows = payload[name] as unknown as Record<string, unknown>[];
+      let rows = payload[name] as unknown as Record<string, unknown>[];
+      // Photos travel as data URLs; the table holds the bytes as a Blob.
+      if (name === 'bodyPhotos') {
+        rows = (rows as unknown as BodyPhotoRecord[])
+          .filter((row) => row && typeof row.dataUrl === 'string')
+          .map((row) => recordToPhoto(row) as unknown as Record<string, unknown>);
+      }
       const table = db.table(name);
       const key = PRIMARY_KEY[name] ?? 'id';
       const valid = rows.filter((row) => row && typeof row[key] === 'string');

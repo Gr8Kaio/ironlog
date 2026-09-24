@@ -1,0 +1,17 @@
+name = "ironlog-push"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# Secrets, set with `wrangler secret put`, never committed:
+#   VAPID_PRIVATE_JWK  the private VAPID key as a JWK (JSON)
+[vars]
+VAPID_PUBLIC_KEY = "BNNfMNVTdFkWYIQQBGokkZuIARicQU_aHpl2v3xMoRHk2bPIPuYR7kLTDDVZ8PaZLU_px8_DZ6iCkHGTRCF8GXI"
+
+[[durable_objects.bindings]]
+name = "TIMERS"
+class_name = "RestTimer"
+
+# SQLite-backed, which is the kind the free plan includes.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RestTimer"]

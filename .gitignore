@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# push worker: local secrets and wrangler state
+push/.dev.vars
+push/.wrangler
+.wrangler

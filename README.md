@@ -63,15 +63,40 @@ For Vercel or any root-domain host, set `BASE = '/'` and rebuild. Routing uses
 Open the deployed URL in Safari, then **Share → Add to Home Screen**. It then
 launches standalone and works with no connection.
 
-Rest-timer alerts on iOS, in order of reliability:
+Rest-timer alerts on iOS:
 
-1. A WebAudio beep scheduled at an exact context time — the only alert that
-   survives the screen switching off mid-rest.
-2. A screen wake lock held while resting, which keeps the app foregrounded.
-3. A Notification, but only once installed to the home screen (iOS 16.4+), and
-   never while Safari is backgrounded. Enable it in Settings if you want it.
+1. A **push notification** from the rest-timer Worker (`push/`), sent at the
+   second the rest ends. iOS freezes a minimized PWA whole (page and service
+   worker timers alike) and has no scheduled notifications, so a push from
+   outside is the only thing that reaches it. Needs the app installed to the
+   home screen (iOS 16.4+) and **Enable rest notifications** tapped once in
+   Settings, which also subscribes to push.
+2. A WebAudio beep scheduled at an exact context time — it survives the screen
+   switching off mid-rest.
+3. A screen wake lock held while resting, which keeps the app foregrounded.
 
-The beep is the one to rely on. There is no vibration on iOS.
+The push is the only source of the banner. If it cannot be scheduled
+(offline, no permission), the service worker keeps a local timer instead,
+which fires only while the browser keeps it alive, and stays quiet if the app
+is already on screen. There is no vibration on iOS.
+
+### The push Worker
+
+`push/` is a Cloudflare Worker with one Durable Object per push subscription;
+the object's alarm is the timer. Web Push (VAPID + `aes128gcm`) is done by
+hand on WebCrypto in `push/src/webpush.js`, checked against an independent
+Node decrypt by `node scripts/check-push.mjs`.
+
+```sh
+cd push
+npx wrangler login
+npx wrangler secret put VAPID_PRIVATE_JWK   # the private key, as a JWK
+npx wrangler deploy
+```
+
+The public half of the VAPID key is in `push/wrangler.toml` and
+`src/lib/push.ts`, and the two must match the secret. Changing the key
+invalidates every existing subscription; the app resubscribes on its own.
 
 ## Data model
 
@@ -171,7 +196,8 @@ This is the part with no safety net: clearing the browser's site data deletes
 everything. Settings tracks the days since your last export and nags after a
 configurable interval.
 
-- **JSON backup** — the whole database, restorable.
+- **JSON backup** — the whole database, restorable, weigh-in photos included
+  (as data URLs, about 150 KB each).
 - **Import: merge** — skips rows whose id already exists, so importing the same
   file twice changes nothing. Use it to fold one device into another.
 - **Import: replace** — wipes this device first.

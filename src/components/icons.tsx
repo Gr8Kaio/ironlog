@@ -113,6 +113,13 @@ export const ScaleIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+export const CameraIcon = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <path d="M4 8h3l1.5-2.5h7L17 8h3v11H4z" />
+    <circle cx="12" cy="13" r="3.2" />
+  </svg>
+);
+
 export const TrashIcon = ({ className }: IconProps) => (
   <svg {...base(className)}>
     <path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" />

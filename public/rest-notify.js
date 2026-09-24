@@ -1,5 +1,10 @@
 /*
- * Rest-timer alerts, fired from inside the service worker.
+ * Rest-timer alerts, raised from inside the service worker.
+ *
+ * Two ways in. The normal one is a push from the IronLog push Worker, sent at
+ * the second the rest ends (see src/lib/push.ts): that is what reaches an app
+ * iOS has frozen. The fallback is a local timer, used only when the page could
+ * not schedule a push.
  *
  * Imported into the generated Workbox worker via `workbox.importScripts` in
  * vite.config.ts, which is the only hook a `generateSW` build offers.
@@ -38,6 +43,30 @@ function show(label) {
   });
 }
 
+/**
+ * The local timer outlives the freeze on iOS and fires the moment the app is
+ * opened again, which is exactly when a banner is useless: the page is already
+ * on screen saying the rest is over. So it stands down if a window is visible.
+ */
+async function showUnlessVisible(label) {
+  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  if (clients.some((client) => client.visibilityState === 'visible')) return;
+  await show(label);
+}
+
+// A push must always show something: iOS revokes the subscription of a site
+// whose pushes arrive silently. So no visibility check here.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    // A payload that is not JSON still ends a rest.
+  }
+  clearPending();
+  event.waitUntil(show(data.body));
+});
+
 self.addEventListener('message', (event) => {
   const data = event.data;
   if (!data || data.type !== 'ironlog-rest') return;
@@ -47,7 +76,7 @@ self.addEventListener('message', (event) => {
 
   const delay = data.endsAt - Date.now();
   if (delay <= 0) {
-    event.waitUntil(show(data.label));
+    event.waitUntil(showUnlessVisible(data.label));
     return;
   }
 
@@ -57,7 +86,7 @@ self.addEventListener('message', (event) => {
     new Promise((resolve) => {
       pending = setTimeout(() => {
         pending = null;
-        show(data.label).then(resolve, resolve);
+        showUnlessVisible(data.label).then(resolve, resolve);
       }, delay);
     }),
   );

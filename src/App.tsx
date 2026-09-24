@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { seedIfEmpty } from './db/seed';
 import { seedFoodsIfMissing } from './db/seedFoods';
-import { backfillBodyweightSets, migrateExerciseLibrary } from './db/backfill';
+import { backfillBodyweightSets, migrateExerciseLibrary, migrateGymVariants } from './db/backfill';
 import { getActiveWorkout } from './db/queries';
 import { ChartIcon, FlameIcon, GearIcon, HistoryIcon, HomeIcon, PlanIcon } from './components/icons';
 import { cx } from './components/ui';
@@ -40,6 +40,7 @@ export default function App() {
     // there is something to look at before anything real is logged.
     seedIfEmpty()
       .then(() => migrateExerciseLibrary())
+      .then(() => migrateGymVariants())
       .then(() => backfillBodyweightSets())
       .then(() => seedFoodsIfMissing())
       .catch((err) => console.error('startup failed', err))

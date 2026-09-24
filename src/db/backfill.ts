@@ -1,5 +1,5 @@
-import { db } from './db';
-import type { Exercise, SideMode } from './types';
+import { db, getSettings, newId, updateSettings } from './db';
+import type { Exercise, RoutineExercise, SideMode } from './types';
 import { buildExercises } from './seed';
 import { recomputeExercisePrs } from '../lib/prs';
 
@@ -117,4 +117,144 @@ export async function migrateExerciseLibrary(): Promise<void> {
     );
     await db.exercises.update(GENERIC_CHEST_PRESS, { isArchived: true, updatedAt: now });
   }
+}
+
+// --------------------------------------------------------- what the gym has
+
+/**
+ * The gym has one calf raise and one hip thrust, and they are the standing
+ * machine and the hip thrust machine. Any plan slot on the other variant
+ * moves to the one that exists, and the variant that does not exist leaves
+ * the pickers (archived, so it is one tap to bring back).
+ */
+const GYM_SWAPS: [from: string, to: string][] = [
+  ['seed-seated-calf-raise', 'seed-standing-calf-raise'],
+  ['seed-barbell-hip-thrust', 'seed-hip-thrust-machine'],
+];
+
+/** The Shred plan, and what each of its days becomes. */
+const SHRED_ROUTINE = '9b2f437e-8795-4d51-bf11-e042770844a6';
+
+/** [exercise, sets, repMin, repMax, rpe, rest, superset] — used only for slots the day did not already have. */
+type Slot = [id: string, sets: number, repMin: number, repMax: number, rpe: number | null, rest: number, superset: string | null];
+
+/**
+ * Five exercises a day, six where the sixth is a cheap superset partner.
+ * What left each day went to where it already had a home: the core work
+ * lives on the metcon day, and the unilateral leg extension goes in next to
+ * the leg curl it was always paired with.
+ */
+const SHRED_DAYS: { name: string; slots: Slot[] }[] = [
+  {
+    name: 'Upper A',
+    slots: [
+      ['seed-bench-press', 4, 5, 7, 8, 150, 'A'],
+      ['seed-barbell-row', 4, 6, 8, 8, 150, 'A'],
+      ['seed-incline-dumbbell-press', 3, 8, 12, 8, 90, 'B'],
+      ['seed-lat-pulldown', 3, 10, 12, 8, 90, 'B'],
+      ['seed-lateral-raise', 3, 12, 15, 9, 60, 'C'],
+      ['seed-face-pull', 3, 15, 20, 9, 60, 'C'],
+    ],
+  },
+  {
+    name: 'Lower A',
+    slots: [
+      ['seed-back-squat', 4, 5, 8, 8, 180, null],
+      ['seed-romanian-deadlift', 3, 8, 10, 8, 150, null],
+      ['seed-leg-press', 3, 10, 15, 8, 90, 'A'],
+      ['seed-lying-leg-curl', 3, 10, 15, 8, 90, 'A'],
+      ['seed-leg-extension', 3, 10, 15, 9, 60, null],
+      ['seed-standing-calf-raise', 4, 10, 15, 8, 60, null],
+    ],
+  },
+  {
+    name: 'Upper B',
+    slots: [
+      ['seed-overhead-press', 4, 6, 8, 8, 150, null],
+      ['seed-pull-up', 4, 5, 8, 8, 150, null],
+      ['seed-chest-press-machine-upright', 3, 10, 15, 8, 90, 'A'],
+      ['seed-seated-cable-row', 3, 10, 15, 8, 90, 'A'],
+      ['seed-cable-curl', 3, 10, 15, 9, 60, 'B'],
+      ['seed-triceps-pushdown', 3, 10, 15, 9, 60, 'B'],
+    ],
+  },
+  {
+    name: 'Lower B',
+    slots: [
+      ['seed-deadlift', 3, 4, 6, 8, 180, null],
+      ['seed-bulgarian-split-squat', 3, 8, 12, 8, 120, null],
+      ['seed-hip-thrust-machine', 3, 8, 12, 8, 90, null],
+      ['seed-seated-leg-curl', 3, 10, 15, 8, 90, 'A'],
+      ['seed-single-leg-extension', 3, 10, 15, 9, 60, 'A'],
+      ['seed-standing-calf-raise', 4, 12, 20, 9, 60, null],
+    ],
+  },
+  {
+    name: 'Metcon',
+    slots: [
+      ['seed-kettlebell-swing', 4, 15, 20, null, 60, 'A'],
+      ['seed-farmer-carry', 4, 30, 45, null, 90, 'A'],
+      ['seed-hanging-leg-raise', 3, 8, 15, 9, 45, null],
+      ['seed-ab-wheel-rollout', 3, 8, 12, 9, 60, null],
+      ['seed-cable-crunch', 3, 12, 20, 9, 45, null],
+    ],
+  },
+];
+
+const GYM_MIGRATION = 'gym-variants-2026-09';
+
+/**
+ * Applied once per device, then never again, so anything it changes stays
+ * yours to change back. A day is only rebuilt if its name still starts the
+ * way it did when this was written: a day you have renamed or reshaped since
+ * is a day you have taken over, and it is left alone.
+ */
+export async function migrateGymVariants(): Promise<void> {
+  const settings = await getSettings();
+  const applied = settings.migrations ?? [];
+  if (applied.includes(GYM_MIGRATION)) return;
+  if ((await db.exercises.count()) === 0) return;
+
+  const now = Date.now();
+  await db.transaction('rw', [db.exercises, db.routineDays, db.routineExercises], async () => {
+    for (const [from, to] of GYM_SWAPS) {
+      if (!(await db.exercises.get(to))) continue;
+      const slots = await db.routineExercises.where('exerciseId').equals(from).toArray();
+      await db.routineExercises.bulkPut(slots.map((slot) => ({ ...slot, exerciseId: to })));
+      await db.exercises.update(from, { isArchived: true, updatedAt: now });
+    }
+
+    const days = await db.routineDays.where('routineId').equals(SHRED_ROUTINE).sortBy('position');
+    for (const plan of SHRED_DAYS) {
+      const day = days.find((d) => d.name.startsWith(plan.name));
+      if (!day) continue;
+      const current = await db.routineExercises.where('routineDayId').equals(day.id).toArray();
+      const rebuilt: RoutineExercise[] = plan.slots.map(
+        ([exerciseId, sets, repMin, repMax, rpe, rest, superset], i) => {
+          const kept = current.find((c) => c.exerciseId === exerciseId);
+          // A slot the day already had keeps its id and your numbers; only its
+          // place in the order and its superset partner are the new plan's.
+          return kept
+            ? { ...kept, position: i + 1, supersetGroup: superset }
+            : {
+                id: newId(),
+                routineDayId: day.id,
+                exerciseId,
+                position: i + 1,
+                supersetGroup: superset,
+                targetSets: sets,
+                repMin,
+                repMax,
+                targetRpe: rpe,
+                restSeconds: rest,
+              };
+        },
+      );
+      const keptIds = new Set(rebuilt.map((r) => r.id));
+      await db.routineExercises.bulkDelete(current.filter((c) => !keptIds.has(c.id)).map((c) => c.id));
+      await db.routineExercises.bulkPut(rebuilt);
+    }
+  });
+
+  await updateSettings({ migrations: [...applied, GYM_MIGRATION] });
 }

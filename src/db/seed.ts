@@ -67,7 +67,11 @@ const LIBRARY: SeedExercise[] = [
   // machine
   ['Leg Press', 'quads', 'machine', 5],
   ['Hack Squat', 'quads', 'machine', 5],
-  ['Leg Extension', 'quads', 'machine', 2.5],
+  ['Leg Extension', 'quads', 'machine', 2.5, 'both'],
+  // Its own entry rather than a flag on the one above: a leg on its own moves
+  // well under half of what two do, so sharing a history would bury both PRs.
+  ['Single-Leg Extension', 'quads', 'machine', 2.5, 'perSide',
+    'Una pierna por vez: todas las reps de un lado y pasas al otro sin descanso.'],
   ['Lying Leg Curl', 'hamstrings', 'machine', 2.5],
   ['Seated Leg Curl', 'hamstrings', 'machine', 2.5],
   // Two machines, two entries. One "Chest Press Machine" could not say which
@@ -82,6 +86,7 @@ const LIBRARY: SeedExercise[] = [
   ['Seated Cable Row', 'back', 'machine', 2.5],
   ['Pec Deck', 'chest', 'machine', 2.5],
   ['Standing Calf Raise', 'calves', 'machine', 2.5],
+  ['Hip Thrust Machine', 'glutes', 'machine', 5],
   ['Seated Calf Raise', 'calves', 'machine', 2.5],
   ['Assisted Pull-up', 'back', 'machine', 2.5],
   // cable

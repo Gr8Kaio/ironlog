@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type {
   BodyMetric,
+  BodyPhoto,
   DayIntakeOverride,
   Exercise,
   Food,
@@ -33,6 +34,7 @@ export class IronLogDB extends Dexie {
   runs!: EntityTable<Run, 'id'>;
   runIntervals!: EntityTable<RunInterval, 'id'>;
   bodyMetrics!: EntityTable<BodyMetric, 'id'>;
+  bodyPhotos!: EntityTable<BodyPhoto, 'id'>;
   foods!: EntityTable<Food, 'id'>;
   foodLogs!: EntityTable<FoodLog, 'id'>;
   waterLogs!: EntityTable<WaterLog, 'id'>;
@@ -73,6 +75,11 @@ export class IronLogDB extends Dexie {
     // so writing it twice is an update and never a duplicate.
     this.version(4).stores({
       dayOverrides: 'localDate',
+    });
+
+    // v5 adds progress photos. Same rule again: only the new store.
+    this.version(5).stores({
+      bodyPhotos: 'id, bodyMetricId, localDate',
     });
   }
 }

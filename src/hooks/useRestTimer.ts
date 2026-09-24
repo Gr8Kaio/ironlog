@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { cancelPush, schedulePush } from '../lib/push';
 
 const STORAGE_KEY = 'ironlog.restTimer';
 
@@ -17,27 +18,23 @@ interface StoredTimer {
  *
  * Alerting on iOS is the awkward part. Safari only delivers Notifications for
  * a PWA installed to the home screen (16.4+), never for a tab, and it freezes
- * timers in a backgrounded tab. There is no scheduled-notification API at all,
- * so nothing here can promise an alert from an app the system has fully
- * evicted. What it does instead is fire the same alert from four places, each
- * of which survives a different failure:
+ * a minimized app whole - page timers and service-worker timers alike. There
+ * is no scheduled-notification API. So:
  *
- *   1. WebAudio beeps scheduled at an exact context time - the only alert that
- *      survives the screen switching off mid-rest, because the audio graph is
- *      committed up front and needs no code to run at the moment it sounds.
- *   2. A near-silent tone held for the length of the rest. Inaudible, and it is
- *      what keeps the audio session alive once the app goes to the background:
- *      without it iOS suspends the context and 1 never sounds.
- *   3. The service worker, handed the deadline, raising the notification from
- *      outside the page. This is the one that can fire while the app is
- *      backgrounded rather than merely screen-off - for as long as the browser
- *      keeps the worker alive, which is not long and is not promised.
- *   4. The page itself, on its own tick and again the moment it becomes
- *      visible, so a rest that ran out while frozen alerts late rather than
- *      never.
- *
- * Notifications go through the service-worker registration rather than
- * `new Notification()`: an installed iOS PWA delivers them no other way.
+ *   1. The banner comes from a server push (`lib/push.ts`): the deadline goes
+ *      to a Worker when the rest starts and the push arrives at that second,
+ *      which wakes a frozen app when nothing inside it can. It is the only
+ *      source of the banner. Showing one from the page as well is what made
+ *      two of them turn up on reopening the app.
+ *   2. Only if the push cannot be scheduled (offline, no permission, a tab
+ *      rather than the installed app) does the service worker get the deadline
+ *      and raise the banner itself, for as long as the browser keeps it alive.
+ *   3. WebAudio beeps scheduled at an exact context time, plus a near-silent
+ *      tone that keeps the audio session alive in the background. That is the
+ *      alert with the screen off, and it needs no code to run when it sounds.
+ *   4. The page, on its own tick and on becoming visible, vibrates and marks
+ *      the rest done. It never raises a banner: when it runs, you are looking
+ *      at it.
  */
 export function useRestTimer() {
   const [endsAt, setEndsAt] = useState<number | null>(null);
@@ -110,7 +107,7 @@ export function useRestTimer() {
     }
   }, []);
 
-  /** Hands the worker the deadline, so it can alert while the page cannot. */
+  /** The fallback: hands the service worker the deadline when no push could be scheduled. */
   const tellWorker = useCallback((message: Record<string, unknown>) => {
     if (!('serviceWorker' in navigator)) return;
     void navigator.serviceWorker.ready
@@ -138,6 +135,7 @@ export function useRestTimer() {
     stopKeepAlive();
     releaseWakeLock();
     tellWorker({ action: 'cancel' });
+    void cancelPush();
     localStorage.removeItem(STORAGE_KEY);
     setEndsAt(null);
     setRemaining(0);
@@ -149,24 +147,7 @@ export function useRestTimer() {
     fired.current = true;
     stopKeepAlive();
     navigator.vibrate?.([200, 100, 200]);
-    if (!('Notification' in window) || Notification.permission !== 'granted') return;
-
-    // Through the registration first: an installed iOS PWA delivers a
-    // notification no other way, and the shared `tag` collapses this into the
-    // banner the worker may already have raised rather than stacking two.
-    const body = label ?? 'Va la que sigue';
-    void navigator.serviceWorker?.ready
-      .then((registration) =>
-        registration.showNotification('Descanso terminado', { body, tag: 'ironlog-rest' }),
-      )
-      .catch(() => {
-        try {
-          new Notification('Descanso terminado', { body, tag: 'ironlog-rest' });
-        } catch {
-          // Blocked here too. The beep is the alert.
-        }
-      });
-  }, [label, stopKeepAlive]);
+  }, [stopKeepAlive]);
 
   /**
    * Schedules three beeps at an exact AudioContext time. Doing this up front
@@ -217,7 +198,12 @@ export function useRestTimer() {
         JSON.stringify({ endsAt: ends, totalSec: seconds, label: options?.label }),
       );
       scheduleBeep(seconds, options?.sound !== false);
-      tellWorker({ action: 'schedule', endsAt: ends, label: options?.label });
+      // One source for the banner, never two. A rescheduled rest (+30 s)
+      // overwrites the earlier push on the server side.
+      tellWorker({ action: 'cancel' });
+      void schedulePush(ends, options?.label).then((scheduled) => {
+        if (!scheduled) tellWorker({ action: 'schedule', endsAt: ends, label: options?.label });
+      });
       navigator.wakeLock
         ?.request('screen')
         .then((lock) => {
