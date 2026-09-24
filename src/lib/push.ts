@@ -11,7 +11,7 @@
  * have to match: a subscription made with one key only accepts pushes signed
  * with the other half of it.
  */
-const PUSH_URL = 'https://ironlog-push.__WORKERS_SUBDOMAIN__.workers.dev';
+const PUSH_URL = 'https://ironlog-push.francocracogna9.workers.dev';
 const VAPID_PUBLIC_KEY =
   'BNNfMNVTdFkWYIQQBGokkZuIARicQU_aHpl2v3xMoRHk2bPIPuYR7kLTDDVZ8PaZLU_px8_DZ6iCkHGTRCF8GXI';
 
