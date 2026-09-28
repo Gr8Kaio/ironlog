@@ -143,17 +143,30 @@ export function FuelToday() {
 
   const pendingShare = plans.filter((p) => !p.hasLogs).reduce((sum, p) => sum + split[p.meal], 0);
   const ideasPlan = plans.find((p) => p.meal === ideasMeal);
+  const ideasLogs = ideasPlan ? logs.filter((l) => l.meal === ideasPlan.meal) : [];
+  // A started meal is planned as if it were still empty — reopened alongside the
+  // meals not eaten yet, with its own logs handed back to the day — and the
+  // sheet takes what is already in it off that.
+  const inMeal = totalMacros(ideasLogs);
+  const openShare = pendingShare + (ideasPlan?.hasLogs ? split[ideasPlan.meal] : 0);
   const ideasTarget =
-    ideasPlan && pendingShare > 0
+    ideasPlan && openShare > 0
       ? mealTarget(
-          ideasPlan.suggestedKcal,
+          Math.max(0, remaining + (ideasPlan.hasLogs ? inMeal.kcal : 0)) *
+            (split[ideasPlan.meal] / openShare),
           {
             proteinG: settings.proteinTargetG,
             carbsG: settings.carbsTargetG,
             fatG: settings.fatTargetG,
           },
-          eaten,
-          split[ideasPlan.meal] / pendingShare,
+          ideasPlan.hasLogs
+            ? {
+                proteinG: eaten.proteinG - inMeal.proteinG,
+                carbsG: eaten.carbsG - inMeal.carbsG,
+                fatG: eaten.fatG - inMeal.fatG,
+              }
+            : eaten,
+          split[ideasPlan.meal] / openShare,
         )
       : null;
 
@@ -246,7 +259,7 @@ export function FuelToday() {
             consumedKcal={plan.consumedKcal}
             logs={logs.filter((l) => l.meal === plan.meal)}
             onAdd={() => setAdding(plan.meal)}
-            onIdeas={plan.hasLogs ? undefined : () => setIdeasMeal(plan.meal)}
+            onIdeas={() => setIdeasMeal(plan.meal)}
             onEdit={setEditing}
           />
         ))}
@@ -279,6 +292,7 @@ export function FuelToday() {
         target={ideasTarget}
         ctx={ctx}
         localDate={date}
+        mealLogs={ideasLogs}
         onClose={() => setIdeasMeal(null)}
       />
     </Screen>
@@ -321,7 +335,7 @@ function MealBlock({
   consumedKcal: number;
   logs: FoodLog[];
   onAdd: () => void;
-  /** Only offered while the meal is still empty. */
+  /** Plates while the meal is empty, things to add to it once it is not. */
   onIdeas?: () => void;
   onEdit: (log: FoodLog) => void;
 }) {

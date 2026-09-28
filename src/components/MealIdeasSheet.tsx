@@ -2,13 +2,16 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, newId } from '../db/db';
 import type { FoodLog, MealSlot } from '../db/types';
 import { getLogsSince, touchFood } from '../db/queries';
-import { MEAL_LABEL, fmtAmount, fmtGrams, fmtKcal } from '../lib/nutrition';
+import { MEAL_LABEL, fmtAmount, fmtGrams, fmtKcal, totalMacros } from '../lib/nutrition';
 import { addDaysToLocalDate } from '../lib/dates';
 import {
+  completionsFor,
   eatenStems,
   ideasFor,
   mealTips,
+  remainingTarget,
   tiltTarget,
+  type Completion,
   type MealTarget,
   type ScaledIdea,
 } from '../lib/mealIdeas';
@@ -20,10 +23,14 @@ export function MealIdeasSheet({
   target,
   ctx,
   localDate,
+  mealLogs,
   onClose,
 }: {
   meal: MealSlot | null;
+  /** The whole meal's target, as if nothing were in it yet. */
   target: MealTarget | null;
+  /** What is already logged in the meal. Non-empty turns plates into additions. */
+  mealLogs: FoodLog[];
   /** Where the day sits relative to training. Orders the plates and heads the tips. */
   ctx: TrainingContext;
   localDate: string;
@@ -40,15 +47,26 @@ export function MealIdeasSheet({
   // Everything below reads the tilted target: the plates are ranked against the
   // shape the moment calls for, and the header shows the same number, so the
   // ordering is never something that happens off-screen.
-  const aimed = target ? tiltTarget(target, ctx.phase) : null;
+  // A started meal is tilted whole and then has what you ate taken off, so the
+  // remainder is the same number you would have been aimed at from the start.
+  const started = mealLogs.length > 0;
+  const tiltedFull = target ? tiltTarget(target, ctx.phase) : null;
+  const aimed =
+    tiltedFull && started ? remainingTarget(tiltedFull, totalMacros(mealLogs)) : tiltedFull;
   const eaten = recentLogs ? eatenStems(recentLogs) : null;
-  const ideas = meal && aimed && foods ? ideasFor(meal, foods, aimed, ctx.phase, eaten) : [];
+  const ideas: (ScaledIdea | Completion)[] =
+    meal && aimed && foods
+      ? started
+        ? completionsFor(meal, foods, aimed, mealLogs, ctx.phase, eaten)
+        : ideasFor(meal, foods, aimed, ctx.phase, eaten)
+      : [];
   const tilted =
     target !== null &&
-    aimed !== null &&
-    aimed.carbsG !== null &&
+    tiltedFull !== null &&
+    tiltedFull.carbsG !== null &&
     target.carbsG !== null &&
-    Math.abs(aimed.carbsG - target.carbsG) >= 1;
+    Math.abs(tiltedFull.carbsG - target.carbsG) >= 1;
+  const haveNames = [...new Set(mealLogs.map((l) => l.name.replace(/\s*\(.*$/, '')))];
 
   async function log(idea: ScaledIdea) {
     if (!meal) return;
@@ -79,13 +97,17 @@ export function MealIdeasSheet({
     <Sheet
       open={meal !== null}
       onClose={onClose}
-      title={meal ? `Ideas para ${MEAL_LABEL[meal].toLowerCase()}` : 'Ideas'}
+      title={
+        meal
+          ? `${started ? 'Para sumarle al' : 'Ideas para'} ${MEAL_LABEL[meal].toLowerCase()}`
+          : 'Ideas'
+      }
     >
       {meal && aimed ? (
         <div className="space-y-3">
           <div className="rounded-xl bg-raised px-3 py-2.5">
             <p className="text-[10px] font-semibold tracking-widest text-faint uppercase">
-              Objetivo de esta comida
+              {started ? 'Le falta a esta comida' : 'Objetivo de esta comida'}
             </p>
             <p className="tabular mt-0.5 text-sm">
               <span className="text-lg font-semibold text-fuel">{fmtKcal(aimed.kcal)}</span>
@@ -94,6 +116,11 @@ export function MealIdeasSheet({
               {aimed.carbsG !== null ? ` · C ${fmtGrams(aimed.carbsG)}` : ''}
               {aimed.fatG !== null ? ` · G ${fmtGrams(aimed.fatG)}` : ''}
             </p>
+            {started ? (
+              <p className="mt-1 text-[11px] leading-snug text-muted">
+                Ya tenés: {haveNames.join(', ')}
+              </p>
+            ) : null}
             {tilted ? (
               <p className="mt-1 text-[11px] leading-snug text-faint">
                 Mismas calorías, repartidas para el momento: lo que le corras al carbohidrato acá se
@@ -109,7 +136,7 @@ export function MealIdeasSheet({
               <span className="font-semibold">{phaseCopy(ctx).title}. </span>
               {phaseCopy(ctx).tip}
             </li>
-            {mealTips(meal, aimed).map((tip) => (
+            {mealTips(meal, aimed, started).map((tip) => (
               <li key={tip} className="rounded-lg bg-fuel/10 px-2.5 py-2 text-[12px] leading-snug text-fuel">
                 {tip}
               </li>
@@ -121,9 +148,17 @@ export function MealIdeasSheet({
               <div className="flex flex-wrap items-start gap-2">
                 <p className="min-w-0 flex-1 text-sm font-medium">{idea.idea.name}</p>
                 {index === 0 ? <Chip tone="fuel">mejor ajuste</Chip> : null}
+                {'builds' in idea && idea.builds.length > 0 ? (
+                  <Chip tone="iron">completa tu plato</Chip>
+                ) : null}
                 {badgeOf(idea, ctx) ? <Chip tone="iron">{badgeOf(idea, ctx)}</Chip> : null}
               </div>
               <p className="mt-0.5 text-[11px] leading-snug text-faint">{idea.idea.why}</p>
+              {'builds' in idea && idea.builds.length > 0 ? (
+                <p className="mt-1 text-[11px] leading-snug text-muted">
+                  Con tu {idea.builds.join(' y ').toLowerCase()}, sumale:
+                </p>
+              ) : null}
 
               <ul className="mt-2 space-y-0.5">
                 {idea.items.map((item) => (
@@ -144,7 +179,7 @@ export function MealIdeasSheet({
                   {fmtGrams(idea.macros.fatG)} · fibra {fmtGrams(idea.macros.fiberG)}
                 </p>
                 <Button variant="primary" className="min-h-10 px-3 text-sm" onClick={() => log(idea)}>
-                  Registrar
+                  {started ? 'Sumar' : 'Registrar'}
                 </Button>
               </div>
             </Card>
@@ -152,7 +187,9 @@ export function MealIdeasSheet({
 
           {ideas.length === 0 ? (
             <p className="py-6 text-center text-sm text-faint">
-              Faltan alimentos de la biblioteca para armar ideas para esta comida.
+              {started
+                ? 'No encontré nada de la biblioteca que le vaya a lo que ya tenés.'
+                : 'Faltan alimentos de la biblioteca para armar ideas para esta comida.'}
             </p>
           ) : null}
         </div>

@@ -5,7 +5,9 @@ import {
 } from '../src/lib/calc.ts';
 import type { WorkoutSet } from '../src/db/types.ts';
 import { weekStart, localDateOf, recentWeeks, daysBetween, addDaysToLocalDate } from '../src/lib/dates.ts';
-import { MEAL_IDEAS, ideasFor, mealTarget, roundAmount, scaleIdea, tiltTarget } from '../src/lib/mealIdeas.ts';
+import {
+  MEAL_IDEAS, completionsFor, ideasFor, mealTarget, remainingTarget, roundAmount, scaleIdea, tiltTarget,
+} from '../src/lib/mealIdeas.ts';
 import {
   buildWeekBudget, dayAllowanceKcal, estimateMaintenance, resolveWeek, weeklyIntake,
 } from '../src/lib/nutrition.ts';
@@ -120,6 +122,31 @@ eq('meal gets its share of what is left',
   { kcal: 480, proteinG: 50, carbsG: null, fatG: 20 });
 eq('a macro already covered leaves nothing, not a negative',
   mealTarget(300, { proteinG: 100, carbsG: 0, fatG: 0 }, { proteinG: 120, carbsG: 0, fatG: 0 }, 1).proteinG, 0);
+
+console.log('--- finishing a started meal ---');
+eq('a started meal is left what the whole meal had room for',
+  remainingTarget({ kcal: 800, proteinG: 50, carbsG: 90, fatG: null }, { kcal: 300, proteinG: 6, carbsG: 70, fatG: 1 }),
+  { kcal: 500, proteinG: 44, carbsG: 20, fatG: null });
+eq('and never less than nothing',
+  remainingTarget({ kcal: 200, proteinG: 10, carbsG: 10, fatG: 5 }, { kcal: 300, proteinG: 20, carbsG: 5, fatG: 9 }),
+  { kcal: 0, proteinG: 0, carbsG: 5, fatG: 0 });
+const riceOnly = completionsFor('lunch', lib, { kcal: 500, proteinG: 45, carbsG: 20, fatG: 15 },
+  [{ name: 'arroz (crudo)' }]);
+const ricePlate = riceOnly.find((c) => c.idea.id === 'arroz-pollo-brocoli')!;
+eq('rice logged: the chicken-and-broccoli plate is offered without the rice',
+  ricePlate.items.map((i) => i.food.seedSlug), ['pechuga-pollo', 'brocoli', 'aceite-oliva']);
+eq('and says what it builds on', ricePlate.builds, ['arroz']);
+eq('the rest is sized to what the meal has left, not the whole meal',
+  ricePlate.macros.kcal < 600, true);
+eq('nothing already in the meal is suggested again',
+  riceOnly.some((c) => c.items.some((i) => i.food.seedSlug === 'arroz')), false);
+eq('a plate already complete offers nothing of itself',
+  completionsFor('lunch', lib, { kcal: 100, proteinG: 0, carbsG: 0, fatG: 0 },
+    [{ name: 'arroz' }, { name: 'pechuga' }, { name: 'brocoli' }, { name: 'aceite-oliva' }])
+    .some((c) => c.idea.id === 'arroz-pollo-brocoli'), false);
+eq('a plain side is offered when nothing logged is part of a plate',
+  completionsFor('lunch', lib, { kcal: 200, proteinG: 10, carbsG: 20, fatG: 5 }, [{ name: 'Empanada' }])
+    .map((c) => c.idea.id).sort(), ['con-arroz', 'con-brocoli']);
 
 console.log('--- day allowance ---');
 const mkLog = (localDate: string, kcal: number) => ({ localDate, kcal, estimated: false }) as FoodLog;

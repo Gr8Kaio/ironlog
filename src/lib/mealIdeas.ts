@@ -492,6 +492,7 @@ export function scaleIdea(
   idea: MealIdea,
   foodsBySlug: Map<string, Food>,
   targetKcal: number,
+  maxFactor = MAX_FACTOR,
 ): Omit<ScaledIdea, 'score'> | null {
   const resolved: { item: IdeaItem; food: Food }[] = [];
   for (const item of idea.items) {
@@ -509,7 +510,7 @@ export function scaleIdea(
   }
   const factor =
     scalable > 0
-      ? Math.min(MAX_FACTOR, Math.max(MIN_FACTOR, (targetKcal - fixed) / scalable))
+      ? Math.min(maxFactor, Math.max(MIN_FACTOR, (targetKcal - fixed) / scalable))
       : 1;
 
   const items = resolved.map(({ item, food }) => {
@@ -704,6 +705,221 @@ export function ideasFor(
   return out.sort((a, b) => a.score - b.score);
 }
 
+// ------------------------------------------------- finishing a started meal
+
+/**
+ * Small things that go next to almost anything: a side, a drink, a piece of
+ * fruit. They are what a started meal is usually missing — the plate is
+ * already there, what it lacks is the protein, the vegetables or a bit more
+ * carbohydrate.
+ */
+interface Companion {
+  id: string;
+  meals: MealSlot[];
+  name: string;
+  why: string;
+  items: IdeaItem[];
+}
+
+const COMPANIONS: Companion[] = [
+  {
+    id: 'con-ensalada',
+    meals: ['lunch', 'dinner'],
+    name: 'Ensalada de lechuga y tomate',
+    why: 'Verdura al lado: llena, suma fibra y casi no cuesta calorías.',
+    items: [
+      { slug: 'lechuga', amount: 80 },
+      { slug: 'tomate', amount: 150 },
+      { slug: 'aceite-oliva', amount: 5 },
+    ],
+  },
+  {
+    id: 'con-brocoli',
+    meals: ['lunch', 'dinner'],
+    name: 'Brócoli al vapor',
+    why: 'La verdura que más proteína trae, y sin aceite no suma casi nada.',
+    items: [{ slug: 'brocoli', amount: 150 }],
+  },
+  {
+    id: 'con-batido',
+    meals: ['breakfast', 'lunch', 'snack', 'dinner'],
+    name: 'Un batido de proteína',
+    why: 'Si lo que ya comiste viene corto de proteína, es lo que la completa sin cocinar.',
+    items: [{ slug: 'batido-proteina-leche-descremada', amount: 1 }],
+  },
+  {
+    id: 'con-huevos',
+    meals: ['breakfast', 'lunch', 'dinner'],
+    name: 'Huevos',
+    why: 'Proteína completa en cinco minutos, al lado de lo que sea.',
+    items: [{ slug: 'huevo', amount: 2, scales: true }],
+  },
+  {
+    id: 'con-atun',
+    meals: ['lunch', 'dinner'],
+    name: 'Una lata de atún al agua',
+    why: 'Casi pura proteína: sube el plato sin moverle la grasa.',
+    items: [{ slug: 'atun-agua', amount: 1, scales: true }],
+  },
+  {
+    id: 'con-yogur',
+    meals: ['breakfast', 'snack'],
+    name: 'Yogur griego',
+    why: 'Proteína y lácteo en un pote, va con cualquier desayuno.',
+    items: [{ slug: 'yogur-griego-natural', amount: 1 }],
+  },
+  {
+    id: 'con-banana',
+    meals: ['breakfast', 'snack'],
+    name: 'Banana',
+    why: 'Carbohidrato fácil si te quedó corto, y potasio.',
+    items: [{ slug: 'banana', amount: 120, scales: true }],
+  },
+  {
+    id: 'con-manzana',
+    meals: ['breakfast', 'lunch', 'snack', 'dinner'],
+    name: 'Una manzana de postre',
+    why: 'Postre con fibra: cierra la comida por poco.',
+    items: [{ slug: 'manzana', amount: 180 }],
+  },
+  {
+    id: 'con-pan',
+    meals: ['breakfast', 'snack'],
+    name: 'Pan integral',
+    why: 'Para que lo que ya tenés rinda: carbohidrato con fibra.',
+    items: [{ slug: 'pan-integral', amount: 2, scales: true }],
+  },
+  {
+    id: 'con-arroz',
+    meals: ['lunch', 'dinner'],
+    name: 'Arroz de guarnición',
+    why: 'Si pusiste la proteína y falta el carbohidrato.',
+    items: [{ slug: 'arroz', amount: 60, scales: true }],
+  },
+  {
+    id: 'con-papa',
+    meals: ['lunch', 'dinner'],
+    name: 'Papa hervida',
+    why: 'Carbohidrato que llena mucho para lo que cuesta.',
+    items: [{ slug: 'papa', amount: 200, scales: true }],
+  },
+];
+
+/**
+ * What a started meal still has room for: the whole meal's target minus what
+ * is already in it, macro by macro, never below zero. Compute the whole meal's
+ * target as if it were still empty (and tilt *that*), then subtract — so the
+ * remainder is the same number you would have been aimed at from the start.
+ */
+export function remainingTarget(
+  full: MealTarget,
+  inMeal: Pick<Macros, 'kcal' | 'proteinG' | 'carbsG' | 'fatG'>,
+): MealTarget {
+  const left = (target: number | null, done: number) =>
+    target === null ? null : Math.max(0, target - done);
+  return {
+    kcal: Math.max(0, full.kcal - inMeal.kcal),
+    proteinG: left(full.proteinG, inMeal.proteinG),
+    carbsG: left(full.carbsG, inMeal.carbsG),
+    fatG: left(full.fatG, inMeal.fatG),
+  };
+}
+
+export interface Completion extends ScaledIdea {
+  /** What you already logged that this builds on; empty for a plain side. */
+  builds: string[];
+}
+
+/** How many to show: past this it is a menu, not a suggestion. */
+const MAX_COMPLETIONS = 8;
+
+/**
+ * A side stretched to fill a whole meal stops being a side: two eggs may grow
+ * to three, not to five. A plate's missing half still scales the full range.
+ */
+const SIDE_MAX_FACTOR = 1.5;
+
+/** Lunch and dinner are the same kind of plate; the rest keep to themselves. */
+const SAME_PLATES: Record<MealSlot, MealSlot[]> = {
+  breakfast: ['breakfast'],
+  lunch: ['lunch', 'dinner'],
+  snack: ['snack'],
+  dinner: ['dinner', 'lunch'],
+};
+
+/**
+ * Things to add to a meal you have already started, best fit first.
+ *
+ * Two kinds. A plate from the list that shares something with what you logged
+ * — rice logged, so the rest of "arroz con pollo y brócoli" — offered as just
+ * the part you are missing, sized to what the meal has left. And the plain
+ * sides above, for when nothing you logged is part of a known plate.
+ *
+ * Nothing already in the meal is suggested again, and two suggestions that
+ * boil down to the same foods (every salad plate minus its protein is the
+ * same salad) only show once.
+ */
+export function completionsFor(
+  meal: MealSlot,
+  foods: Food[],
+  target: MealTarget,
+  mealLogs: Pick<FoodLog, 'name'>[],
+  phase?: TrainingPhase,
+  eaten?: Map<string, number> | null,
+  now = Date.now(),
+): Completion[] {
+  const bySlug = new Map<string, Food>();
+  for (const f of foods) if (f.seedSlug && !f.isArchived) bySlug.set(f.seedSlug, f);
+
+  // Stem -> the name as you logged it, without the brand or the "(cruda)".
+  const have = new Map<string, string>();
+  for (const log of mealLogs) {
+    const stem = foodStem(log.name);
+    if (stem && !have.has(stem)) have.set(stem, log.name.replace(/\s*\(.*$/, ''));
+  }
+  const stemOf = (slug: string) => {
+    const food = bySlug.get(slug);
+    return food ? foodStem(food.name) : null;
+  };
+  const alreadyIn = (slug: string) => {
+    const stem = stemOf(slug);
+    return stem !== null && have.has(stem);
+  };
+
+  const candidates: { idea: MealIdea; builds: string[] }[] = [];
+  for (const idea of MEAL_IDEAS) {
+    if (!SAME_PLATES[meal].includes(idea.meal)) continue;
+    const builds = new Set<string>();
+    const missing: IdeaItem[] = [];
+    for (const item of idea.items) {
+      if (alreadyIn(item.slug)) builds.add(have.get(stemOf(item.slug)!)!);
+      else missing.push(item);
+    }
+    if (builds.size === 0 || missing.length === 0) continue;
+    candidates.push({ idea: { ...idea, items: missing }, builds: [...builds] });
+  }
+  for (const c of COMPANIONS) {
+    if (!c.meals.includes(meal) || c.items.some((i) => alreadyIn(i.slug))) continue;
+    candidates.push({ idea: { id: c.id, meal, name: c.name, why: c.why, items: c.items }, builds: [] });
+  }
+
+  const best = new Map<string, Completion>();
+  for (const { idea, builds } of candidates) {
+    const scaled = scaleIdea(idea, bySlug, target.kcal, builds.length > 0 ? MAX_FACTOR : SIDE_MAX_FACTOR);
+    if (!scaled) continue;
+    const scalesBySlug = new Map(idea.items.map((i) => [i.slug, i.scales === true]));
+    const anchored = scaled.items.map((item) => ({
+      food: item.food,
+      scales: scalesBySlug.get(item.food.seedSlug ?? '') ?? false,
+    }));
+    const score = fitScore(scaled.macros, target, phase) + familiarityPenalty(anchored, eaten, now);
+    const key = idea.items.map((i) => i.slug).sort().join('+');
+    const prev = best.get(key);
+    if (!prev || score < prev.score) best.set(key, { ...scaled, score, builds });
+  }
+  return [...best.values()].sort((a, b) => a.score - b.score).slice(0, MAX_COMPLETIONS);
+}
+
 const BASE_TIP: Record<MealSlot, string> = {
   breakfast:
     'Proteína desde el desayuno: repartida en el día le rinde más al músculo que juntada a la noche.',
@@ -713,10 +929,14 @@ const BASE_TIP: Record<MealSlot, string> = {
 };
 
 /** Advice for this meal given how the day has gone, most pressing first. */
-export function mealTips(meal: MealSlot, t: MealTarget): string[] {
+export function mealTips(meal: MealSlot, t: MealTarget, started = false): string[] {
   const tips: string[] = [];
   if (t.kcal < 150) {
-    tips.push('Queda poco del día: si tenés hambre, verdura y proteína magra, que suman poco.');
+    tips.push(
+      started
+        ? 'Esta comida ya está casi completa: si querés sumar algo, que sea verdura o proteína magra.'
+        : 'Queda poco del día: si tenés hambre, verdura y proteína magra, que suman poco.',
+    );
   } else {
     // Over ~35% of the meal's energy as protein means the day is running behind on it.
     if (t.proteinG !== null && t.proteinG * 4 > t.kcal * 0.35) {
