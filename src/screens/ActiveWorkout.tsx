@@ -166,6 +166,7 @@ export function ActiveWorkout() {
       setType: values.setType,
       bodyWeightKg: exercise.equipment === 'bodyweight' ? (bodyWeightKg ?? 0) : null,
       note: values.note,
+      // oxlint-disable-next-line react/purity -- runs on log, not during render
       completedAt: Date.now(),
       prTypes: [],
     };
@@ -664,12 +665,15 @@ function SetEditor({
 
   // Re-prefill whenever the suggestion moves on (a set was logged or removed),
   // unless the value has been touched for this set already.
-  useEffect(() => {
+  const setKey = `${exercise.id}:${nextSetNumber}`;
+  const [prefilledFor, setPrefilledFor] = useState(setKey);
+  if (prefilledFor !== setKey) {
+    setPrefilledFor(setKey);
     setWeight(null);
     setReps(null);
     setRpe(null);
     setNote('');
-  }, [nextSetNumber, exercise.id]);
+  }
 
   const isBodyweight = exercise.equipment === 'bodyweight';
   const weightValue = weight ?? suggestion.weightKg;

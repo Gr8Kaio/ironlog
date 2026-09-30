@@ -7,17 +7,16 @@ import { CameraIcon, ChevronLeft, ChevronRight } from './icons';
 
 /** An object URL for a stored blob, revoked when the blob changes or the view goes away. */
 export function useBlobUrl(blob: Blob | null | undefined): string | null {
-  const [url, setUrl] = useState<string | null>(null);
+  const [made, setMade] = useState<{ blob: Blob; url: string } | null>(null);
   useEffect(() => {
-    if (!blob) {
-      setUrl(null);
-      return;
-    }
-    const next = URL.createObjectURL(blob);
-    setUrl(next);
-    return () => URL.revokeObjectURL(next);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    // oxlint-disable-next-line react/set-state-in-effect -- the URL is an external resource with a lifetime
+    setMade({ blob, url });
+    return () => URL.revokeObjectURL(url);
   }, [blob]);
-  return url;
+  // Only the URL made for this blob: the previous one is already revoked.
+  return blob && made?.blob === blob ? made.url : null;
 }
 
 export function PhotoThumb({

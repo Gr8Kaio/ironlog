@@ -1,6 +1,6 @@
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { seedIfEmpty } from './db/seed';
 import { seedFoodsIfMissing } from './db/seedFoods';
 import { backfillBodyweightSets, migrateExerciseLibrary, migrateGymVariants } from './db/backfill';
@@ -15,13 +15,21 @@ import { ActiveWorkout } from './screens/ActiveWorkout';
 import { RunEditor } from './screens/RunEditor';
 import { History } from './screens/History';
 import { SessionDetail } from './screens/SessionDetail';
-import { Progress } from './screens/Progress';
-import { ExerciseDetail } from './screens/ExerciseDetail';
-import { BodyMetrics } from './screens/BodyMetrics';
 import { SettingsScreen } from './screens/Settings';
 import { FoodLibrary } from './screens/FoodLibrary';
 import { FuelToday } from './screens/FuelToday';
 import { FuelWeek } from './screens/FuelWeek';
+
+// The three screens with charts load on first visit: recharts is most of the
+// bundle, and keeping it out of the first download is what makes a cold start
+// fast. The service worker precaches their chunks, so they still open offline.
+const Progress = lazy(() => import('./screens/Progress').then((m) => ({ default: m.Progress })));
+const ExerciseDetail = lazy(() =>
+  import('./screens/ExerciseDetail').then((m) => ({ default: m.ExerciseDetail })),
+);
+const BodyMetrics = lazy(() =>
+  import('./screens/BodyMetrics').then((m) => ({ default: m.BodyMetrics })),
+);
 
 const TABS = [
   { to: '/', label: 'Home', Icon: HomeIcon },
@@ -36,6 +44,10 @@ export default function App() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    // Everything lives only on this device, so ask the browser not to evict it
+    // when space runs low. Best effort: a refusal changes nothing else.
+    navigator.storage?.persist?.().catch(() => {});
+
     // First run on a fresh device: fill the library and the demo history so
     // there is something to look at before anything real is logged.
     seedIfEmpty()
@@ -57,25 +69,27 @@ export default function App() {
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg">
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/exercises" element={<ExerciseLibrary />} />
-        <Route path="/exercises/:exerciseId" element={<ExerciseDetail />} />
-        <Route path="/plans" element={<Routines />} />
-        <Route path="/plans/:routineId" element={<RoutineEditor />} />
-        <Route path="/workout/:workoutId" element={<ActiveWorkout />} />
-        <Route path="/run/new" element={<RunEditor />} />
-        <Route path="/run/:runId" element={<RunEditor />} />
-        <Route path="/history" element={<History />} />
-        <Route path="/session/:workoutId" element={<SessionDetail />} />
-        <Route path="/progress" element={<Progress />} />
-        <Route path="/body" element={<BodyMetrics />} />
-        <Route path="/fuel" element={<FuelToday />} />
-        <Route path="/fuel/foods" element={<FoodLibrary />} />
-        <Route path="/fuel/week" element={<FuelWeek />} />
-        <Route path="/fuel/day/:localDate" element={<FuelToday />} />
-        <Route path="/settings" element={<SettingsScreen />} />
-      </Routes>
+      <Suspense fallback={null}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/exercises" element={<ExerciseLibrary />} />
+          <Route path="/exercises/:exerciseId" element={<ExerciseDetail />} />
+          <Route path="/plans" element={<Routines />} />
+          <Route path="/plans/:routineId" element={<RoutineEditor />} />
+          <Route path="/workout/:workoutId" element={<ActiveWorkout />} />
+          <Route path="/run/new" element={<RunEditor />} />
+          <Route path="/run/:runId" element={<RunEditor />} />
+          <Route path="/history" element={<History />} />
+          <Route path="/session/:workoutId" element={<SessionDetail />} />
+          <Route path="/progress" element={<Progress />} />
+          <Route path="/body" element={<BodyMetrics />} />
+          <Route path="/fuel" element={<FuelToday />} />
+          <Route path="/fuel/foods" element={<FoodLibrary />} />
+          <Route path="/fuel/week" element={<FuelWeek />} />
+          <Route path="/fuel/day/:localDate" element={<FuelToday />} />
+          <Route path="/settings" element={<SettingsScreen />} />
+        </Routes>
+      </Suspense>
       <BottomDock />
     </div>
   );

@@ -70,6 +70,7 @@ export function MealIdeasSheet({
 
   async function log(idea: ScaledIdea) {
     if (!meal) return;
+    // oxlint-disable-next-line react/purity -- runs on tap, not during render
     const now = Date.now();
     const rows: FoodLog[] = idea.items.map((item, i) => ({
       id: newId(),

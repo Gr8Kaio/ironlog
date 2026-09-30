@@ -203,6 +203,7 @@ function FoodEditor({ food, onClose }: { food: Food | 'new' | null; onClose: () 
 
   async function save() {
     if (!canSave) return;
+    // oxlint-disable-next-line react/purity -- runs on save, not during render
     const now = Date.now();
     const row: Food = {
       id: existing?.id ?? newId(),

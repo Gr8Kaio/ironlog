@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, newId } from '../db/db';
 import type { Food, FoodLog, MealSlot, Portion } from '../db/types';
@@ -91,13 +91,16 @@ export function AddFoodSheet({
   const all = useLiveQuery(() => db.foods.toArray(), [], undefined);
 
   // Reopening the sheet must not resume a half-finished entry from last time.
-  useEffect(() => {
+  // Reset while rendering the close, not in an effect after it.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (!open) {
       setQuery('');
       setPicked(null);
       setFreehand(false);
     }
-  }, [open]);
+  }
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -221,6 +224,7 @@ function AmountStep({
 
   async function save() {
     if (value <= 0) return;
+    // oxlint-disable-next-line react/purity -- runs on save, not during render
     const now = Date.now();
     const log: FoodLog = {
       id: newId(),

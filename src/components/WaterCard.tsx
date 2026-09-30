@@ -39,6 +39,7 @@ export function WaterCard({
   async function add(ml: number, label?: string) {
     // A past day has no meaningful clock time, so it lands at midday rather
     // than at whatever hour you happened to be backfilling it.
+    // oxlint-disable-next-line react/purity -- runs on tap, not during render
     const at = isToday ? Date.now() : toEpoch(localDate, '12:00');
     await db.waterLogs.add({ id: newId(), localDate, loggedAt: at, ml, label });
   }

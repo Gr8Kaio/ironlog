@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getSettings, newId } from '../db/db';
@@ -65,9 +65,8 @@ export function RunEditor() {
   const [loaded, setLoaded] = useState(false);
 
   // Hydrate once from the stored run; later live-query pushes must not stomp
-  // on edits in progress.
-  useEffect(() => {
-    if (loaded || !existing || existingIntervals === undefined) return;
+  // on edits in progress. Done while rendering, so the form never paints empty.
+  if (!loaded && existing && existingIntervals !== undefined) {
     const started = new Date(existing.startedAt);
     setLocalDate(existing.localDate);
     setTime(`${String(started.getHours()).padStart(2, '0')}:${String(started.getMinutes()).padStart(2, '0')}`);
@@ -92,11 +91,9 @@ export function RunEditor() {
       })),
     );
     setLoaded(true);
-  }, [existing, existingIntervals, loaded]);
+  }
 
-  useEffect(() => {
-    if (isNew && settings && surface === null) setSurface(settings.defaultSurface);
-  }, [isNew, settings, surface]);
+  if (isNew && settings && surface === null) setSurface(settings.defaultSurface);
 
   const durationSec = minutes * 60 + seconds;
   const pace = paceSecPerKm(distanceKm, durationSec);

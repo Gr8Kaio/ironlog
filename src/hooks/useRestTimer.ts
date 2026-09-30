@@ -9,6 +9,20 @@ interface StoredTimer {
   label?: string;
 }
 
+/** A timer that was running when the app was closed or reloaded, if it has time left. */
+function readStoredTimer(): StoredTimer | null {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const stored = JSON.parse(raw) as StoredTimer;
+    if (stored.endsAt > Date.now()) return stored;
+  } catch {
+    // unreadable: drop it below
+  }
+  localStorage.removeItem(STORAGE_KEY);
+  return null;
+}
+
 /**
  * Rest timer.
  *
@@ -37,9 +51,10 @@ interface StoredTimer {
  *      at it.
  */
 export function useRestTimer() {
-  const [endsAt, setEndsAt] = useState<number | null>(null);
-  const [totalSec, setTotalSec] = useState(0);
-  const [label, setLabel] = useState<string | undefined>();
+  const [restored] = useState(readStoredTimer);
+  const [endsAt, setEndsAt] = useState<number | null>(restored?.endsAt ?? null);
+  const [totalSec, setTotalSec] = useState(restored?.totalSec ?? 0);
+  const [label, setLabel] = useState<string | undefined>(restored?.label);
   const [remaining, setRemaining] = useState(0);
 
   const audioRef = useRef<AudioContext | null>(null);
@@ -47,24 +62,6 @@ export function useRestTimer() {
   const keepAlive = useRef<{ osc: OscillatorNode; gain: GainNode } | null>(null);
   const wakeLock = useRef<WakeLockSentinel | null>(null);
   const fired = useRef(false);
-
-  // Restore a timer that was running when the app was closed or reloaded.
-  useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const stored = JSON.parse(raw) as StoredTimer;
-      if (stored.endsAt > Date.now()) {
-        setEndsAt(stored.endsAt);
-        setTotalSec(stored.totalSec);
-        setLabel(stored.label);
-      } else {
-        localStorage.removeItem(STORAGE_KEY);
-      }
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }, []);
 
   const releaseWakeLock = useCallback(() => {
     void wakeLock.current?.release().catch(() => {});

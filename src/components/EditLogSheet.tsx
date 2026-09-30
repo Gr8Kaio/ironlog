@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import type { FoodLog, MealSlot } from '../db/types';
@@ -30,17 +30,22 @@ export function EditLogSheet({ log, onClose }: { log: FoodLog | null; onClose: (
     undefined,
   );
 
-  useEffect(() => {
-    if (!log) return;
-    setAmount(String(log.amount));
-    setKcal(String(Math.round(log.kcal)));
-    setProtein(String(Math.round(log.proteinG)));
-    setMeal(log.meal);
-    setEstimated(log.estimated);
-    setConfirming(false);
-  }, [log]);
+  // Load the entry into the form while rendering it, not in an effect after.
+  const [shownLog, setShownLog] = useState<FoodLog | null>(null);
+  if (log !== shownLog) {
+    setShownLog(log);
+    // Closing (null) resets the marker, so reopening the same entry reloads it.
+    if (log) {
+      setAmount(String(log.amount));
+      setKcal(String(Math.round(log.kcal)));
+      setProtein(String(Math.round(log.proteinG)));
+      setMeal(log.meal);
+      setEstimated(log.estimated);
+      setConfirming(false);
+    }
+  }
 
-  if (!log) return <Sheet open={false} onClose={onClose} children={null} />;
+  if (!log) return <Sheet open={false} onClose={onClose}>{null}</Sheet>;
 
   const freehand = log.foodId == null;
   const newAmount = num(amount);

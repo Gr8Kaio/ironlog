@@ -52,6 +52,7 @@ export function SessionDetail() {
   for (const set of sets) if (!order.includes(set.exerciseId)) order.push(set.exerciseId);
 
   async function repeat() {
+    // oxlint-disable-next-line react/purity -- runs on tap, not during render
     const startedAt = Date.now();
     const next: Workout = {
       id: newId(),
