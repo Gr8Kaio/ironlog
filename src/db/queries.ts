@@ -214,7 +214,7 @@ export async function getWeeklyLiftStats(weeks = 8): Promise<WeekLiftStats[]> {
   const keys = recentWeeks(weeks);
   const earliest = keys[0];
 
-  const workouts = (await db.workouts.toArray()).filter((w) => w.localDate >= earliest);
+  const workouts = await db.workouts.where('localDate').aboveOrEqual(earliest).toArray();
   const sets = await db.sets.where('workoutId').anyOf(workouts.map((w) => w.id)).toArray();
   const exercises = await db.exercises.toArray();
   const muscleOf = new Map(exercises.map((e) => [e.id, e.muscleGroup]));
@@ -264,7 +264,7 @@ export interface WeekRunStats {
 export async function getWeeklyRunStats(weeks = 8): Promise<WeekRunStats[]> {
   const keys = recentWeeks(weeks);
   const earliest = keys[0];
-  const runs = (await db.runs.toArray()).filter((r) => r.localDate >= earliest);
+  const runs = await db.runs.where('localDate').aboveOrEqual(earliest).toArray();
 
   const byWeek = new Map(keys.map((k) => [k, { week: k, distanceKm: 0, runs: 0, durationSec: 0 }]));
   for (const r of runs) {

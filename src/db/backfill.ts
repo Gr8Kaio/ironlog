@@ -19,8 +19,11 @@ export async function backfillBodyweightSets(): Promise<number> {
   );
   if (bodyweightIds.size === 0) return 0;
 
-  const stale = (await db.sets.toArray()).filter(
-    (s) => bodyweightIds.has(s.exerciseId) && s.bodyWeightKg === undefined,
+  // Through the index, so this reads the bodyweight sets and not the whole log.
+  // It still runs on every start on purpose: importing an old backup can bring
+  // unstamped sets back, and a one-shot flag would never look at them.
+  const stale = (await db.sets.where('exerciseId').anyOf([...bodyweightIds]).toArray()).filter(
+    (s) => s.bodyWeightKg === undefined,
   );
   if (stale.length === 0) return 0;
 
