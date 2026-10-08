@@ -108,7 +108,7 @@ export function AddFoodSheet({
     return (all ?? []).filter((f) => !f.isArchived && matchesFood(f, query)).slice(0, 40);
   }, [query, quick, all]);
 
-  const title = picked ? picked.name : freehand ? 'Carga rápida' : `Agregar a ${MEAL_LABEL[meal].toLowerCase()}`;
+  const title = picked ? picked.name : freehand ? 'Comida única' : `Agregar a ${MEAL_LABEL[meal].toLowerCase()}`;
 
   return (
     <Sheet open={open} onClose={onClose} title={title}>
@@ -176,7 +176,7 @@ export function AddFoodSheet({
           </div>
 
           <Button variant="outline" className="mt-3 w-full text-sm" onClick={() => setFreehand(true)}>
-            Cargar solo calorías
+            Comida única (no queda en la biblioteca)
           </Button>
         </>
       )}
@@ -367,8 +367,14 @@ function FreehandStep({
   const [name, setName] = useState('');
   const [kcal, setKcal] = useState('');
   const [protein, setProtein] = useState('');
+  const [carbs, setCarbs] = useState('');
+  const [fat, setFat] = useState('');
+  // Leído de un envase o de una app es dato, no estimación: lo decide él.
+  const [estimated, setEstimated] = useState(true);
 
-  const value = num(kcal);
+  // Sin calorías pero con macros, salen de 4/4/9.
+  const fromMacros = num(protein) * 4 + num(carbs) * 4 + num(fat) * 9;
+  const value = kcal.trim() === '' ? fromMacros : num(kcal);
 
   async function save() {
     if (value <= 0) return;
@@ -383,13 +389,11 @@ function FreehandStep({
       unit: 'unit',
       kcal: value,
       proteinG: num(protein),
-      carbsG: 0,
-      fatG: 0,
+      carbsG: num(carbs),
+      fatG: num(fat),
       fiberG: null,
       meal,
-      // A freehand entry is an estimate by construction: if it were weighed it
-      // would have been logged against a food.
-      estimated: true,
+      estimated,
     });
     onDone();
   }
@@ -399,9 +403,9 @@ function FreehandStep({
       <Budget dayRemaining={dayRemaining} mealSuggested={mealSuggested} meal={meal} cost={value} />
 
       <p className="text-[11px] leading-snug text-faint">
-        Para lo que no vas a pesar: la comida de afuera, la mesa familiar. Estimá y seguí — queda
-        marcado como estimado y el promedio de la semana absorbe el error. Dejar de registrar cuesta
-        mucho más que redondear mal.
+        Se suma al día y no queda en la biblioteca. Para lo que no vas a repetir: la comida de afuera,
+        la mesa familiar, algo con etiqueta. Si es a ojo, estimá y seguí: el promedio de la semana
+        absorbe el error.
       </p>
 
       <Field label="Qué fue">
@@ -415,7 +419,7 @@ function FreehandStep({
       </Field>
 
       <div className="grid grid-cols-2 gap-2">
-        <Field label="Calorías">
+        <Field label="Calorías" hint={kcal.trim() === '' && fromMacros > 0 ? `${fmtKcal(fromMacros)} por macros` : undefined}>
           <TextInput
             inputMode="decimal"
             value={kcal}
@@ -431,7 +435,25 @@ function FreehandStep({
             placeholder="60"
           />
         </Field>
+        <Field label="Carbohidratos (g)" hint="Opcional">
+          <TextInput
+            inputMode="decimal"
+            value={carbs}
+            onChange={(e) => setCarbs(e.target.value)}
+            placeholder="80"
+          />
+        </Field>
+        <Field label="Grasas (g)" hint="Opcional">
+          <TextInput
+            inputMode="decimal"
+            value={fat}
+            onChange={(e) => setFat(e.target.value)}
+            placeholder="30"
+          />
+        </Field>
       </div>
+
+      <EstimatedToggle value={estimated} onChange={setEstimated} />
 
       <div className="flex gap-2">
         <Button variant="outline" onClick={onBack}>

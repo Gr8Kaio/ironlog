@@ -18,6 +18,8 @@ export function EditLogSheet({ log, onClose }: { log: FoodLog | null; onClose: (
   const [amount, setAmount] = useState('');
   const [kcal, setKcal] = useState('');
   const [protein, setProtein] = useState('');
+  const [carbs, setCarbs] = useState('');
+  const [fat, setFat] = useState('');
   const [meal, setMeal] = useState<MealSlot>('lunch');
   const [estimated, setEstimated] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -39,6 +41,8 @@ export function EditLogSheet({ log, onClose }: { log: FoodLog | null; onClose: (
       setAmount(String(log.amount));
       setKcal(String(Math.round(log.kcal)));
       setProtein(String(Math.round(log.proteinG)));
+      setCarbs(String(Math.round(log.carbsG)));
+      setFat(String(Math.round(log.fatG)));
       setMeal(log.meal);
       setEstimated(log.estimated);
       setConfirming(false);
@@ -61,8 +65,8 @@ export function EditLogSheet({ log, onClose }: { log: FoodLog | null; onClose: (
     ? {
         kcal: num(kcal),
         proteinG: num(protein),
-        carbsG: 0,
-        fatG: 0,
+        carbsG: num(carbs),
+        fatG: num(fat),
         fiberG: log.fiberG ?? null,
       }
     : {
@@ -115,6 +119,20 @@ export function EditLogSheet({ log, onClose }: { log: FoodLog | null; onClose: (
                 inputMode="decimal"
                 value={protein}
                 onChange={(e) => setProtein(e.target.value)}
+              />
+            </Field>
+            <Field label="Carbohidratos (g)">
+              <TextInput
+                inputMode="decimal"
+                value={carbs}
+                onChange={(e) => setCarbs(e.target.value)}
+              />
+            </Field>
+            <Field label="Grasas (g)">
+              <TextInput
+                inputMode="decimal"
+                value={fat}
+                onChange={(e) => setFat(e.target.value)}
               />
             </Field>
           </div>
