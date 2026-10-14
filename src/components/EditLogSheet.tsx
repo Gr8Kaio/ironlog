@@ -142,7 +142,8 @@ export function EditLogSheet({ log, onClose }: { log: FoodLog | null; onClose: (
               <CountPicker value={newAmount} onChange={(n) => setAmount(String(n))} />
             ) : null}
 
-            {food && food.portions.length > 0 ? (
+            {/* Un log viejo en unidades de un alimento que hoy se pesa: sus porciones son gramos. */}
+            {food && food.refUnit === log.unit && food.portions.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {food.portions.map((p) => (
                   <button key={p.label} type="button" onClick={() => setAmount(String(p.amount))}>

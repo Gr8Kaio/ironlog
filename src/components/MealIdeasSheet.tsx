@@ -165,7 +165,7 @@ export function MealIdeasSheet({
                 {idea.items.map((item) => (
                   <li key={item.food.id} className="tabular flex gap-2 text-[12px]">
                     <span className="w-14 shrink-0 text-right text-muted">
-                      {fmtAmount(item.amount, item.food.refUnit)}
+                      {item.count ? `${item.count}×` : fmtAmount(item.amount, item.food.refUnit)}
                     </span>
                     <span className="min-w-0 flex-1 truncate">{item.food.name}</span>
                     <span className="shrink-0 text-faint">{fmtKcal(item.macros.kcal)}</span>

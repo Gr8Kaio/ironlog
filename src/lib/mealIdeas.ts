@@ -437,6 +437,8 @@ const MAX_FACTOR = 2.5;
 export interface ResolvedItem {
   food: Food;
   amount: number;
+  /** Whole units, for a food the idea counts but the library weighs. */
+  count?: number;
   macros: Macros;
 }
 
@@ -487,6 +489,26 @@ export function roundAmount(amount: number, unit: FoodUnit): number {
   return Math.max(step, Math.round(amount / step) * step);
 }
 
+/**
+ * Ideas count these foods in units (2 huevos, 1 pote) since the days they
+ * were per-unit foods. They are weighed now, with a "unidad" portion, so the
+ * count is turned into grams here.
+ */
+const COUNTED_SLUGS = new Set([
+  'atun-agua', 'atun-aceite', 'huevo', 'pan-integral', 'hamburguesa-casera', 'hamburguesa-light',
+  'chorizo', 'jamon-cocido', 'pan-frances', 'grisines', 'galletitas-agua', 'yogur-griego-natural',
+  'yogur-firme-descremado', 'galletitas-rumba', 'batido-proteina-leche-entera',
+  'batido-proteina-leche-descremada', 'batido-proteina-leche-protein', 'milanesa-carne-frita',
+  'milanesa-carne-horno', 'milanesa-pollo-frita', 'milanesa-pollo-horno', 'empanada-carne', 'medialuna',
+]);
+
+/** What one unit of the idea's amount is in the food's own unit. */
+function unitSize(item: IdeaItem, food: Food): number {
+  // A library row you edited back to "por unidad" is already counted.
+  if (food.refUnit === 'unit' || !COUNTED_SLUGS.has(item.slug)) return 1;
+  return food.portions.find((p) => p.label === 'unidad')?.amount ?? 1;
+}
+
 /** Null when the library is missing, or has archived, one of the idea's foods. */
 export function scaleIdea(
   idea: MealIdea,
@@ -494,17 +516,17 @@ export function scaleIdea(
   targetKcal: number,
   maxFactor = MAX_FACTOR,
 ): Omit<ScaledIdea, 'score'> | null {
-  const resolved: { item: IdeaItem; food: Food }[] = [];
+  const resolved: { item: IdeaItem; food: Food; perUnit: number }[] = [];
   for (const item of idea.items) {
     const food = foodsBySlug.get(item.slug);
     if (!food) return null;
-    resolved.push({ item, food });
+    resolved.push({ item, food, perUnit: unitSize(item, food) });
   }
 
   let fixed = 0;
   let scalable = 0;
-  for (const { item, food } of resolved) {
-    const kcal = macrosOf(food, item.amount).kcal;
+  for (const { item, food, perUnit } of resolved) {
+    const kcal = macrosOf(food, item.amount * perUnit).kcal;
     if (item.scales) scalable += kcal;
     else fixed += kcal;
   }
@@ -513,9 +535,15 @@ export function scaleIdea(
       ? Math.min(maxFactor, Math.max(MIN_FACTOR, (targetKcal - fixed) / scalable))
       : 1;
 
-  const items = resolved.map(({ item, food }) => {
-    const amount = roundAmount(item.scales ? item.amount * factor : item.amount, food.refUnit);
-    return { food, amount, macros: macrosOf(food, amount) };
+  const items = resolved.map(({ item, food, perUnit }) => {
+    const raw = item.scales ? item.amount * factor : item.amount;
+    if (perUnit === 1) {
+      const amount = roundAmount(raw, food.refUnit);
+      return { food, amount, macros: macrosOf(food, amount) };
+    }
+    const count = roundAmount(raw, 'unit');
+    const amount = count * perUnit;
+    return { food, amount, count, macros: macrosOf(food, amount) };
   });
   return { idea, items, macros: sumMacros(items.map((i) => i.macros)) };
 }

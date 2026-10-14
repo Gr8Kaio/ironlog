@@ -114,6 +114,14 @@ eq('only buildable ideas are offered',
   ideasFor('lunch', lib, { kcal: 840, proteinG: 59, carbsG: 94, fatG: 24 }).map((i) => i.idea.id),
   ['arroz-pollo-brocoli']);
 eq('eggs round to whole units', roundAmount(2.6, 'unit'), 3);
+{
+  const eggs = { id: 'eggs', meal: 'lunch' as const, name: '', why: '', items: [{ slug: 'huevo', amount: 2, scales: true }] };
+  const weighed = { ...mkFood('huevo', 100, 'g', 143, 12.6, 0.8, 9.6), portions: [{ label: 'unidad', amount: 50 }] };
+  const counted = mkFood('huevo', 1, 'unit', 71.5, 6.3, 0.4, 4.8);
+  const w = scaleIdea(eggs, new Map([['huevo', weighed]]), 300)!.items[0];
+  const c = scaleIdea(eggs, new Map([['huevo', counted]]), 300)!.items[0];
+  eq('weighed eggs are still counted whole', [w.count, w.amount], [c.amount, c.amount * 50]);
+}
 eq('never zero units', roundAmount(0.2, 'unit'), 1);
 eq('small gram amounts round to 5', roundAmount(13, 'g'), 15);
 eq('large gram amounts round to 10', roundAmount(117, 'g'), 120);

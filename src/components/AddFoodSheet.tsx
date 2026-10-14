@@ -9,9 +9,10 @@ import { FlameIcon } from './icons';
 
 /**
  * A partir de este peso, una "unidad" es algo entero que se cuenta de a uno
- * (una banana, una milanesa) en vez de un grano que se pesa de a puñados.
+ * (una banana, una feta, una galletita de 6 g) en vez de un fruto seco que
+ * se pesa de a puñados (el más pesado, la castaña de Pará, es 5 g).
  */
-const COUNTED_WHOLE_G = 40;
+const COUNTED_WHOLE_G = 6;
 
 const num = (s: string): number => {
   const n = Number(s.replace(',', '.'));
