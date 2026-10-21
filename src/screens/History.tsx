@@ -12,7 +12,7 @@ type Filter = 'all' | 'lifts' | 'runs';
 const FILTERS = [
   { value: 'all' as const, label: 'Everything' },
   { value: 'lifts' as const, label: 'Lifts' },
-  { value: 'runs' as const, label: 'Runs' },
+  { value: 'runs' as const, label: 'Cardio' },
 ];
 
 export function History() {
@@ -37,7 +37,7 @@ export function History() {
 
   return (
     <Screen>
-      <TopBar title="History" subtitle="Lifts and runs, one timeline" />
+      <TopBar title="History" subtitle="Lifts, runs and rides, one timeline" />
 
       <Segmented options={FILTERS} value={filter} onChange={setFilter} />
 
@@ -70,7 +70,7 @@ export function History() {
 function WeekHeader({ week, items }: { week: string; items: HistoryEntry[] }) {
   const lifts = items.filter((e) => e.kind === 'workout');
   const runs = items.filter((e) => e.kind === 'run');
-  const km = runs.reduce((t, r) => t + (r.kind === 'run' ? r.run.distanceKm : 0), 0);
+  const km = runs.reduce((t, r) => t + (r.kind === 'run' && r.run.sport !== 'ride' ? r.run.distanceKm : 0), 0);
   const sets = lifts.reduce((t, w) => t + (w.kind === 'workout' ? w.workingSets : 0), 0);
 
   return (

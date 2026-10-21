@@ -25,6 +25,15 @@ export const BarbellIcon = ({ className }: IconProps) => (
   </svg>
 );
 
+/** Bike, for rides: same cool tone as runs. */
+export const BikeIcon = ({ className }: IconProps) => (
+  <svg {...base(className)}>
+    <circle cx="5.5" cy="16.5" r="3.5" />
+    <circle cx="18.5" cy="16.5" r="3.5" />
+    <path d="M5.5 16.5 9 9h6l3.5 7.5M9 9l3 7.5h-6.5M15 9l-1-3h-2.5" />
+  </svg>
+);
+
 /**
  * A runner, not a shoe: at 20px a shoe silhouette reads as a boat, and this
  * icon carries the running half of the colour code everywhere.

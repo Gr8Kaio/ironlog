@@ -360,7 +360,7 @@ export async function exportRunsCsv(): Promise<{ filename: string; text: string 
   for (const run of runs) {
     const pace = paceSecPerKm(run.distanceKm, run.durationSec);
     rows.push([
-      'run',
+      run.sport ?? 'run',
       run.localDate,
       run.runType,
       run.distanceKm,

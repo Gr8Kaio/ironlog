@@ -4,7 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, getSettings, newId } from '../db/db';
 import type { KneeState, Run, RunInterval, RunType, Surface } from '../db/types';
 import { KNEE_STATES, RUN_TYPES, SURFACES } from '../db/types';
-import { fmtKm, formatDuration, formatPace, paceSecPerKm } from '../lib/calc';
+import { fmtKm, formatDuration, formatPace, paceSecPerKm, speedOf } from '../lib/calc';
 import { localDateOf, toEpoch } from '../lib/dates';
 import { KNEE_LABEL, RUN_TYPE_LABEL, SURFACE_LABEL } from '../lib/labels';
 import { Stepper } from '../components/Stepper';
@@ -53,6 +53,7 @@ export function RunEditor() {
   const [minutes, setMinutes] = useState(25);
   const [seconds, setSeconds] = useState(0);
   const [runType, setRunType] = useState<RunType>('easy');
+  const [isRide, setIsRide] = useState(false);
   const [route, setRoute] = useState('');
   const [notes, setNotes] = useState('');
   const [effort, setEffort] = useState<number | null>(null);
@@ -74,6 +75,7 @@ export function RunEditor() {
     setMinutes(Math.floor(existing.durationSec / 60));
     setSeconds(existing.durationSec % 60);
     setRunType(existing.runType);
+    setIsRide(existing.sport === 'ride');
     setRoute(existing.route ?? '');
     setNotes(existing.notes ?? '');
     setEffort(existing.effort ?? null);
@@ -112,12 +114,14 @@ export function RunEditor() {
       localDate,
       distanceKm,
       durationSec,
-      runType,
+      // Run types, surface and repeats are running vocabulary; a ride keeps the defaults.
+      runType: isRide ? 'easy' : runType,
+      sport: isRide ? 'ride' : undefined,
       route: route.trim() || undefined,
       notes: notes.trim() || undefined,
       effort,
       kneeFeel: knee,
-      surface,
+      surface: isRide ? null : surface,
       tempC,
       weather: weather.trim() || undefined,
     };
@@ -125,7 +129,7 @@ export function RunEditor() {
     await db.transaction('rw', db.runs, db.runIntervals, async () => {
       await db.runs.put(run);
       await db.runIntervals.where('runId').equals(run.id).delete();
-      if (runType === 'intervals' && intervals.length > 0) {
+      if (!isRide && runType === 'intervals' && intervals.length > 0) {
         await db.runIntervals.bulkAdd(
           intervals.map((draft, index) => ({
             id: draft.id,
@@ -167,7 +171,7 @@ export function RunEditor() {
   return (
     <Screen>
       <TopBar
-        title={isNew ? 'Log a run' : 'Edit run'}
+        title={`${isNew ? 'Log' : 'Edit'} ${isRide ? (isNew ? 'a ride' : 'ride') : isNew ? 'a run' : 'run'}`}
         left={
           <button
             type="button"
@@ -182,6 +186,16 @@ export function RunEditor() {
             Save
           </Button>
         }
+      />
+
+      <Segmented
+        options={[
+          { value: 'run', label: 'Run' },
+          { value: 'ride', label: 'Ride' },
+        ]}
+        value={isRide ? 'ride' : 'run'}
+        onChange={(v) => setIsRide(v === 'ride')}
+        className="mb-3"
       />
 
       {/* Distance and time in, pace out. Pace is never an input. */}
@@ -227,10 +241,10 @@ export function RunEditor() {
         <div className="mt-3 flex items-center justify-between rounded-xl bg-ink px-3 py-2.5">
           <div>
             <div className="text-[10px] font-semibold tracking-widest text-faint uppercase">
-              Average pace
+              {isRide ? 'Average speed' : 'Average pace'}
             </div>
             <div className="tabular mt-0.5 text-2xl leading-none font-semibold text-stride">
-              {formatPace(pace)}
+              {isRide ? speedOf(distanceKm, durationSec) : formatPace(pace)}
             </div>
           </div>
           <div className="text-right">
@@ -244,14 +258,18 @@ export function RunEditor() {
         </div>
       </Card>
 
-      <SectionTitle>Type</SectionTitle>
-      <Segmented
-        options={RUN_TYPES.map((value) => ({ value, label: RUN_TYPE_LABEL[value] }))}
-        value={runType}
-        onChange={setRunType}
-      />
+      {!isRide ? (
+        <>
+          <SectionTitle>Type</SectionTitle>
+          <Segmented
+            options={RUN_TYPES.map((value) => ({ value, label: RUN_TYPE_LABEL[value] }))}
+            value={runType}
+            onChange={setRunType}
+          />
+        </>
+      ) : null}
 
-      {runType === 'intervals' ? (
+      {!isRide && runType === 'intervals' ? (
         <IntervalEditor
           intervals={intervals}
           setIntervals={setIntervals}
@@ -312,7 +330,7 @@ export function RunEditor() {
           </div>
         </div>
 
-        <div>
+        <div className={isRide ? 'hidden' : undefined}>
           <div className="mb-1.5 text-xs font-medium tracking-wide text-muted uppercase">
             Surface
           </div>
@@ -375,8 +393,8 @@ export function RunEditor() {
         {!isNew ? (
           confirmDelete ? (
             <ConfirmRow
-              message="Delete this run permanently?"
-              confirmLabel="Delete run"
+              message={`Delete this ${isRide ? 'ride' : 'run'} permanently?`}
+              confirmLabel={isRide ? 'Delete ride' : 'Delete run'}
               onConfirm={remove}
               onCancel={() => setConfirmDelete(false)}
             />
@@ -386,7 +404,7 @@ export function RunEditor() {
               onClick={() => setConfirmDelete(true)}
               className="w-full py-3 text-center text-sm text-faint active:text-danger"
             >
-              Delete run
+              {isRide ? 'Delete ride' : 'Delete run'}
             </button>
           )
         ) : null}

@@ -156,7 +156,7 @@ export function Home() {
       {/* Quick actions ------------------------------------------------- */}
       <div className="mt-3 grid grid-cols-3 gap-2">
         <QuickAction
-          label="Log a run"
+          label="Run or ride"
           tone="stride"
           icon={<ShoeIcon className="size-5" />}
           onClick={() => navigate('/run/new')}

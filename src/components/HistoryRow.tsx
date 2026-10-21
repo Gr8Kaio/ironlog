@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import type { HistoryEntry } from '../db/queries';
-import { fmtKm, fmtNumber, formatDuration, paceOf } from '../lib/calc';
+import { fmtKm, fmtNumber, formatDuration, paceOf, speedOf } from '../lib/calc';
 import { formatDayLabel, formatTime } from '../lib/dates';
 import { RUN_TITLE } from '../lib/labels';
-import { BarbellIcon, ShoeIcon } from './icons';
+import { BarbellIcon, BikeIcon, ShoeIcon } from './icons';
 import { Chip, cx } from './ui';
 
 /**
@@ -14,6 +14,7 @@ import { Chip, cx } from './ui';
 export function HistoryRow({ entry, showDay = true }: { entry: HistoryEntry; showDay?: boolean }) {
   const navigate = useNavigate();
   const isRun = entry.kind === 'run';
+  const isRide = isRun && entry.run.sport === 'ride';
 
   return (
     <button
@@ -27,13 +28,19 @@ export function HistoryRow({ entry, showDay = true }: { entry: HistoryEntry; sho
           isRun ? 'bg-stride/15 text-stride' : 'bg-iron/15 text-iron',
         )}
       >
-        {isRun ? <ShoeIcon className="size-5" /> : <BarbellIcon className="size-5" />}
+        {isRide ? (
+          <BikeIcon className="size-5" />
+        ) : isRun ? (
+          <ShoeIcon className="size-5" />
+        ) : (
+          <BarbellIcon className="size-5" />
+        )}
       </span>
 
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline gap-2">
           <span className="truncate font-medium">
-            {isRun ? RUN_TITLE[entry.run.runType] : entry.workout.name}
+            {isRide ? 'Ride' : isRun ? RUN_TITLE[entry.run.runType] : entry.workout.name}
           </span>
           {!isRun && entry.prCount > 0 ? (
             <Chip tone="gold">{entry.prCount} PR{entry.prCount > 1 ? 's' : ''}</Chip>
@@ -68,7 +75,9 @@ function RunSummary({ entry }: { entry: Extract<HistoryEntry, { kind: 'run' }> }
   return (
     <>
       {fmtKm(run.distanceKm)} km · {formatDuration(run.durationSec)} ·{' '}
-      {paceOf(run.distanceKm, run.durationSec)}
+      {run.sport === 'ride'
+        ? speedOf(run.distanceKm, run.durationSec)
+        : paceOf(run.distanceKm, run.durationSec)}
       {entry.intervals.length > 0 ? ` · ${entry.intervals.length} reps` : ''}
     </>
   );

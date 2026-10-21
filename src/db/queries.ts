@@ -264,7 +264,9 @@ export interface WeekRunStats {
 export async function getWeeklyRunStats(weeks = 8): Promise<WeekRunStats[]> {
   const keys = recentWeeks(weeks);
   const earliest = keys[0];
-  const runs = await db.runs.where('localDate').aboveOrEqual(earliest).toArray();
+  const runs = (await db.runs.where('localDate').aboveOrEqual(earliest).toArray()).filter(
+    (r) => r.sport !== 'ride',
+  );
 
   const byWeek = new Map(keys.map((k) => [k, { week: k, distanceKm: 0, runs: 0, durationSec: 0 }]));
   for (const r of runs) {
@@ -292,7 +294,7 @@ export interface PacePoint {
 export async function getPaceTrend(): Promise<PacePoint[]> {
   const runs = await db.runs.orderBy('startedAt').toArray();
   return runs
-    .filter((r) => r.distanceKm > 0 && r.durationSec > 0)
+    .filter((r) => r.sport !== 'ride' && r.distanceKm > 0 && r.durationSec > 0)
     .map((r) => ({
       localDate: r.localDate,
       runType: r.runType,
@@ -310,7 +312,7 @@ export interface RunTotals {
 }
 
 export async function getRunTotals(): Promise<RunTotals> {
-  const runs = await db.runs.orderBy('startedAt').toArray();
+  const runs = (await db.runs.orderBy('startedAt').toArray()).filter((r) => r.sport !== 'ride');
   const months = new Map<string, { month: string; distanceKm: number; runs: number }>();
   let longestKm = 0;
   let longestDate: string | null = null;

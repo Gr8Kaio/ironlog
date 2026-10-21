@@ -94,6 +94,12 @@ export function paceOf(distanceKm: number, durationSec: number): string {
   return formatPace(paceSecPerKm(distanceKm, durationSec));
 }
 
+/** Rides read in speed, not pace: `27.4 km/h`. */
+export function speedOf(distanceKm: number, durationSec: number): string {
+  if (distanceKm <= 0 || durationSec <= 0) return '--';
+  return `${(distanceKm / (durationSec / 3600)).toFixed(1)} km/h`;
+}
+
 /** `48:20` under an hour, `1:02:44` over it. */
 export function formatDuration(sec: number): string {
   const total = Math.max(0, Math.round(sec));

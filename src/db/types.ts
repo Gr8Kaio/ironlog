@@ -168,6 +168,8 @@ export interface Run {
   distanceKm: number;
   durationSec: number;
   runType: RunType;
+  /** Rides share the runs table; absent means a run, so old rows need no migration. */
+  sport?: 'ride';
   route?: string;
   notes?: string;
   effort?: number | null;
