@@ -1,7 +1,7 @@
 import { solvePlates, formatPerSide } from '../src/lib/plates.ts';
 import {
   epley1RM, paceOf, formatDuration, fmtKg, fmtKm,
-  setLoad, loadLabel, loadLabelShort, topSet, bestE1RM, workoutVolume, sessionKcal,
+  setLoad, loadLabel, loadLabelShort, topSet, bestE1RM, workoutVolume, sessionKcal, liftingIntensity,
 } from '../src/lib/calc.ts';
 import type { WorkoutSet } from '../src/db/types.ts';
 import { weekStart, localDateOf, recentWeeks, daysBetween, addDaysToLocalDate } from '../src/lib/dates.ts';
@@ -325,6 +325,11 @@ eq('so a merely acceptable plate is not badged', phaseBadge(middling, 'pre'), nu
 eq('a 10 km run at 80 kg is ~800 kcal', sessionKcal({ kind: 'run', durationSec: 3000, distanceKm: 10 }, 80), 800);
 eq('an hour of lifting at 80 kg is 320 active kcal', sessionKcal({ kind: 'workout', durationSec: 3600 }, 80), 320);
 eq('a 20 km/h hour on the bike uses the 19-22 band', sessionKcal({ kind: 'ride', durationSec: 3600, distanceKm: 20 }, 80), 560);
+eq('no sets logged leaves the plain lifting MET', liftingIntensity([], 3600), 1);
+eq('18 chest sets in an hour is a typical session', liftingIntensity(Array(18).fill('chest'), 3600), 1);
+eq('the same 18 sets of legs count for more', liftingIntensity(Array(18).fill('quads'), 3600), 1.3);
+eq('arms-only with long rests bottoms out', liftingIntensity(Array(10).fill('biceps'), 3600), 0.7);
+eq('a dense leg hour is capped at +30%', sessionKcal({ kind: 'workout', durationSec: 3600, intensity: liftingIntensity(Array(30).fill('quads'), 3600) }, 80), 416);
 eq('a zero-length session burns nothing', sessionKcal({ kind: 'ride', durationSec: 0, distanceKm: 5 }, 80), 0);
 
 console.log(failures === 0 ? '\nAll passed.' : `\n${failures} FAILED`);

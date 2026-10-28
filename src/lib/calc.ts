@@ -1,4 +1,4 @@
-import type { WorkoutSet } from '../db/types';
+import type { MuscleGroup, WorkoutSet } from '../db/types';
 
 /**
  * Derived numbers live here and are computed on read. Nothing in this file is
@@ -167,21 +167,48 @@ const RIDE_METS: [maxKmh: number, met: number][] = [
 const LIFTING_MET = 5;
 
 /**
+ * How much a working set of each muscle group costs next to an average one:
+ * legs and back move the most muscle, arms, calves and core the least.
+ */
+const SET_COST: Record<MuscleGroup, number> = {
+  quads: 1.3, hamstrings: 1.3, glutes: 1.3, back: 1.3,
+  chest: 1, shoulders: 1,
+  biceps: 0.7, triceps: 0.7, calves: 0.7, core: 0.7, forearms: 0.7,
+};
+
+/** Weighted working sets per hour that the plain `LIFTING_MET` stands for. */
+const TYPICAL_SETS_PER_HOUR = 18;
+
+/**
+ * Scales the lifting MET by how dense and how big the session was: the
+ * working sets you logged, each weighed by its muscle group, per hour.
+ * Kept within ±30%, because time under the bar still dominates and a short
+ * session with a handful of squats is not a 2x workout. No sets, no opinion.
+ */
+export function liftingIntensity(setGroups: MuscleGroup[], durationSec: number): number {
+  if (setGroups.length === 0 || durationSec <= 0) return 1;
+  const weighted = setGroups.reduce((sum, g) => sum + SET_COST[g], 0);
+  const perHour = weighted / (durationSec / 3600);
+  return Math.min(1.3, Math.max(0.7, perHour / TYPICAL_SETS_PER_HOUR));
+}
+
+/**
  * Active kcal of one session: what it cost on top of sitting still, so it does
  * not double count the resting burn the daily target already assumes.
  * Running goes by distance (~1 kcal per kg per km, close to pace-independent);
- * rides and lifting by MET x hours. An estimate, never a measurement.
+ * rides and lifting by MET x hours, lifting scaled by `liftingIntensity`.
+ * An estimate, never a measurement.
  */
 export function sessionKcal(
-  s: { kind: 'workout' | 'run' | 'ride'; durationSec: number; distanceKm?: number },
+  s: { kind: 'workout' | 'run' | 'ride'; durationSec: number; distanceKm?: number; intensity?: number },
   weightKg: number,
 ): number {
   if (s.durationSec <= 0) return 0;
   const hours = s.durationSec / 3600;
   if (s.kind === 'run') return weightKg * (s.distanceKm ?? 0);
-  const met =
+  const active =
     s.kind === 'ride'
-      ? RIDE_METS.find(([max]) => (s.distanceKm ?? 0) / hours < max)![1]
-      : LIFTING_MET;
-  return (met - 1) * weightKg * hours;
+      ? RIDE_METS.find(([max]) => (s.distanceKm ?? 0) / hours < max)![1] - 1
+      : (LIFTING_MET - 1) * (s.intensity ?? 1);
+  return active * weightKg * hours;
 }

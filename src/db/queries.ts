@@ -14,7 +14,7 @@ import type {
   Workout,
   WorkoutSet,
 } from './types';
-import { bestE1RM, epley1RM, isWorkingSet, sessionKcal, setLoad, setVolume, topSet, workoutVolume } from '../lib/calc';
+import { bestE1RM, epley1RM, isWorkingSet, liftingIntensity, sessionKcal, setLoad, setVolume, topSet, workoutVolume } from '../lib/calc';
 import type { AssumptionInputs } from '../lib/nutrition';
 import { addDaysToLocalDate, localDateOf, monthKey, recentWeeks, todayLocalDate, weekStart } from '../lib/dates';
 import type { TrainingSession } from '../lib/trainingFuel';
@@ -633,12 +633,21 @@ export async function getDayBurn(localDate: string, now = Date.now()): Promise<D
     getLatestBodyWeightKg(),
   ]);
   const kg = weight ?? 75;
+  const sets = await db.sets.where('workoutId').anyOf(workouts.map((w) => w.id)).toArray();
+  const groups = new Map(
+    (await db.exercises.bulkGet([...new Set(sets.map((s) => s.exerciseId))]))
+      .filter((e) => e != null)
+      .map((e) => [e.id, e.muscleGroup]),
+  );
   const kcal =
     workouts.reduce((sum, w) => {
       // A session left open past three hours was forgotten, not trained.
       const end = w.finishedAt ?? (w.status === 'in_progress' ? now : w.startedAt);
       const sec = Math.min(3 * 3600, Math.max(0, (end - w.startedAt) / 1000));
-      return sum + sessionKcal({ kind: 'workout', durationSec: sec }, kg);
+      const setGroups = sets
+        .filter((s) => s.workoutId === w.id && isWorkingSet(s) && groups.has(s.exerciseId))
+        .map((s) => groups.get(s.exerciseId)!);
+      return sum + sessionKcal({ kind: 'workout', durationSec: sec, intensity: liftingIntensity(setGroups, sec) }, kg);
     }, 0) +
     runs.reduce(
       (sum, r) =>
