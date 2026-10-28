@@ -63,9 +63,13 @@ const LIBRARY: SeedExercise[] = [
   ['Walking Lunge', 'quads', 'dumbbell', 2, 'perSide'],
   ['Dumbbell Romanian Deadlift', 'hamstrings', 'dumbbell', 2],
   ['Goblet Squat', 'quads', 'dumbbell', 2],
+  ['Single-Leg Romanian Deadlift', 'hamstrings', 'dumbbell', 2, 'perSide',
+    'Una pierna por vez, la mancuerna del lado contrario. Cadera cuadrada al piso.'],
   ['Skull Crusher', 'triceps', 'dumbbell', 1],
   // machine
   ['Leg Press', 'quads', 'machine', 5],
+  ['Single-Leg Leg Press', 'quads', 'machine', 5, 'perSide',
+    'Un pie al centro de la plataforma. Todas las reps de un lado y cambias.'],
   ['Hack Squat', 'quads', 'machine', 5],
   ['Leg Extension', 'quads', 'machine', 2.5, 'both'],
   // Its own entry rather than a flag on the one above: a leg on its own moves
@@ -95,6 +99,8 @@ const LIBRARY: SeedExercise[] = [
   ['Overhead Cable Extension', 'triceps', 'cable', 2.5, 'both'],
   ['Cable Lateral Raise', 'shoulders', 'cable', 2.5, 'perSide'],
   ['Face Pull', 'shoulders', 'cable', 2.5, 'both'],
+  ['Single-Arm Lat Pulldown', 'back', 'cable', 2.5, 'perSide',
+    'Polea alta con manija. Tira el codo hacia el bolsillo, sin rotar el torso.'],
   ['Cable Curl', 'biceps', 'cable', 2.5, 'both'],
   ['Cable Crunch', 'core', 'cable', 2.5, 'both'],
   // bodyweight
@@ -111,6 +117,8 @@ const LIBRARY: SeedExercise[] = [
   // kettlebell
   ['Kettlebell Swing', 'glutes', 'kettlebell', 4],
   ['Farmer Carry', 'forearms', 'kettlebell', 4],
+  ['Suitcase Carry', 'core', 'kettlebell', 4, 'perSide',
+    'Peso en una sola mano, torso derecho sin inclinarte. Las reps son SEGUNDOS por lado.'],
 ];
 
 export const slugify = (name: string): string =>

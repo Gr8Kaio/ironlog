@@ -261,3 +261,149 @@ export async function migrateGymVariants(): Promise<void> {
 
   await updateSettings({ migrations: [...applied, GYM_MIGRATION] });
 }
+
+// ------------------------------------------------------------ Shred, block 2
+
+/**
+ * Exercises that live on franco's device as custom rows, so there is no slug
+ * to point at. Found by name; created only on a device that never had them.
+ */
+const CUSTOMS: Record<string, Pick<Exercise, 'muscleGroup' | 'equipment' | 'incrementKg' | 'sideMode'>> = {
+  'Bayesian Bicep Curl': { muscleGroup: 'biceps', equipment: 'cable', incrementKg: 2.5, sideMode: 'perSide' },
+  'Single Arm Triceps Pushdown': { muscleGroup: 'triceps', equipment: 'cable', incrementKg: 2.5, sideMode: 'perSide' },
+  'Unilateral Leg Curl': { muscleGroup: 'hamstrings', equipment: 'machine', incrementKg: 2.5, sideMode: 'perSide' },
+  'Rear Delt Flies': { muscleGroup: 'shoulders', equipment: 'machine', incrementKg: 2.5, sideMode: 'both' },
+};
+
+/** [exercise (slug or a CUSTOMS name), sets, repMin, repMax, rpe, rest, superset, note] */
+type Slot2 = [...Slot, note?: string];
+
+/**
+ * Same goal as the first block (hold strength, burn fat), new movements after
+ * five weeks on the same ones. The heavy lift of each day changes variant
+ * rather than disappearing, and half the accessory work goes one side at a
+ * time so a strong side cannot cover for the weak one.
+ */
+const SHRED_2_DAYS: { name: string; slots: Slot2[] }[] = [
+  {
+    name: 'Upper A - fuerza',
+    slots: [
+      ['seed-incline-bench-press', 4, 5, 7, 8, 150, 'A', 'Reemplaza al plano. Pesado: en deficit baja reps antes que carga.'],
+      ['seed-dumbbell-row', 4, 8, 10, 8, 120, 'A', 'Un brazo por vez, apoyado en el banco.'],
+      ['seed-dip', 3, 6, 10, 8, 90, 'B', 'Torso inclinado adelante para cargar pecho.'],
+      ['seed-chin-up', 3, 6, 10, 8, 90, 'B'],
+      ['seed-cable-lateral-raise', 3, 12, 15, 9, 60, 'C'],
+      ['Rear Delt Flies', 3, 15, 20, 9, 60, 'C'],
+    ],
+  },
+  {
+    name: 'Lower A - cuadriceps',
+    slots: [
+      ['seed-hack-squat', 4, 6, 10, 8, 150, null, 'Reemplaza la sentadilla por un bloque. Si la rodilla molesta, para 2 cm antes.'],
+      ['seed-single-leg-romanian-deadlift', 3, 8, 12, 8, 90, null],
+      ['seed-walking-lunge', 3, 10, 12, 8, 90, 'A', 'Reps por pierna.'],
+      ['Unilateral Leg Curl', 3, 10, 15, 8, 90, 'A'],
+      ['seed-single-leg-extension', 3, 12, 15, 9, 60, null],
+      ['seed-standing-calf-raise', 4, 10, 15, 9, 60, null],
+    ],
+  },
+  {
+    name: 'Upper B - volumen',
+    slots: [
+      ['seed-dumbbell-shoulder-press', 4, 8, 10, 8, 120, null],
+      ['seed-single-arm-lat-pulldown', 3, 10, 12, 8, 90, 'A'],
+      ['seed-chest-press-machine-lying', 3, 10, 15, 8, 90, 'A'],
+      ['Bayesian Bicep Curl', 3, 10, 15, 9, 60, 'B', 'De espaldas a la polea, brazo atras: el biceps trabaja estirado.'],
+      ['Single Arm Triceps Pushdown', 3, 10, 15, 9, 60, 'B'],
+      ['seed-hammer-curl', 2, 10, 15, 9, 60, null],
+    ],
+  },
+  {
+    name: 'Lower B - posterior',
+    slots: [
+      ['seed-romanian-deadlift', 4, 6, 8, 8, 150, null, 'Toma el lugar del peso muerto: misma cadera, menos castigo.'],
+      ['seed-single-leg-leg-press', 3, 10, 12, 8, 90, null],
+      ['seed-hip-thrust-machine', 3, 8, 12, 8, 90, null],
+      ['seed-seated-leg-curl', 3, 10, 15, 8, 90, 'A'],
+      ['seed-back-extension', 3, 12, 15, 8, 60, 'A'],
+      ['seed-standing-calf-raise', 4, 12, 20, 9, 60, null],
+    ],
+  },
+  {
+    name: 'Metcon + core (opcional)',
+    slots: [
+      ['seed-kettlebell-swing', 4, 15, 20, null, 60, 'A'],
+      ['seed-suitcase-carry', 4, 30, 45, null, 90, 'A'],
+      ['seed-ab-wheel-rollout', 3, 8, 12, 9, 60, null],
+      ['seed-hanging-leg-raise', 3, 8, 15, 9, 45, null],
+    ],
+  },
+];
+
+const SHRED_2_MIGRATION = 'shred-2-2026-10';
+
+/**
+ * Adds the second block as its own plan and makes it the active one. The
+ * first plan is not touched, so going back is one tap in Routines.
+ */
+export async function addShredBlock2(): Promise<void> {
+  const settings = await getSettings();
+  const applied = settings.migrations ?? [];
+  if (applied.includes(SHRED_2_MIGRATION)) return;
+  if ((await db.exercises.count()) === 0) return;
+
+  const now = Date.now();
+  await db.transaction('rw', [db.exercises, db.routines, db.routineDays, db.routineExercises], async () => {
+    const all = await db.exercises.toArray();
+    const resolve = async (ref: string): Promise<string> => {
+      const template = CUSTOMS[ref];
+      if (!template) return ref;
+      const found = all.find((e) => e.name.trim().toLowerCase() === ref.toLowerCase());
+      if (found) {
+        if (found.isArchived) await db.exercises.update(found.id, { isArchived: false, updatedAt: now });
+        return found.id;
+      }
+      const created: Exercise = {
+        id: newId(), name: ref, ...template, isCustom: true, isArchived: false, createdAt: now, updatedAt: now,
+      };
+      await db.exercises.add(created);
+      all.push(created);
+      return created.id;
+    };
+
+    const routineId = newId();
+    await db.routines.bulkPut((await db.routines.toArray()).map((r) => ({ ...r, isActive: false })));
+    await db.routines.add({
+      id: routineId,
+      name: 'Shred 2 - unilateral',
+      isActive: true,
+      notes: 'Bloque 2 de definicion: variantes nuevas y trabajo a un lado por vez.',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    for (const [d, plan] of SHRED_2_DAYS.entries()) {
+      const dayId = newId();
+      await db.routineDays.add({ id: dayId, routineId, name: plan.name, position: d + 1 });
+      const slots: RoutineExercise[] = [];
+      for (const [i, [ref, sets, repMin, repMax, rpe, rest, superset, note]] of plan.slots.entries()) {
+        slots.push({
+          id: newId(),
+          routineDayId: dayId,
+          exerciseId: await resolve(ref),
+          position: i + 1,
+          supersetGroup: superset,
+          targetSets: sets,
+          repMin,
+          repMax,
+          targetRpe: rpe,
+          restSeconds: rest,
+          notes: note,
+        });
+      }
+      await db.routineExercises.bulkAdd(slots);
+    }
+  });
+
+  await updateSettings({ migrations: [...applied, SHRED_2_MIGRATION] });
+}
