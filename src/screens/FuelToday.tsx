@@ -5,6 +5,7 @@ import { getSettings } from '../db/db';
 import type { FoodLog, MealSlot } from '../db/types';
 import {
   getAssumptionInputs,
+  getDayBurn,
   getLogsForDate,
   getLogsForWeekOf,
   getTrainingSessions,
@@ -80,6 +81,8 @@ export function FuelToday() {
   // Keyed by day, so walking to another date cannot carry over what you
   // declared about this one. The stored value is the source of truth; this
   // only exists to re-render when it changes.
+  const burn = useLiveQuery(() => getDayBurn(date, tick), [date, tick], undefined);
+
   const [declared, setDeclared] = useState<Record<string, PhaseOverride>>({});
   const phaseOverride = declared[date] ?? readOverride(date);
 
@@ -229,6 +232,18 @@ export function FuelToday() {
             </span>
             <ChevronRight className="size-4 shrink-0 text-faint" />
           </button>
+        ) : null}
+
+        {/* Information only: nothing above adds it back. The target already
+            assumes your training week, so eating it back would count it twice. */}
+        {burn && burn.sessions > 0 ? (
+          <p className="tabular mt-3 flex items-center gap-1.5 text-[11px] text-faint">
+            <FlameIcon className="size-3.5 shrink-0" />
+            <span>
+              Entreno de {isToday ? 'hoy' : 'ese día'}: ~{fmtKcal(Math.round(burn.kcal / 10) * 10)} kcal
+              estimadas{burn.weighed ? '' : ' (sin pesaje, con 75 kg)'} · no suman al balance
+            </span>
+          </p>
         ) : null}
       </Card>
 

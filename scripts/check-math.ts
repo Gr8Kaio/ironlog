@@ -1,7 +1,7 @@
 import { solvePlates, formatPerSide } from '../src/lib/plates.ts';
 import {
   epley1RM, paceOf, formatDuration, fmtKg, fmtKm,
-  setLoad, loadLabel, loadLabelShort, topSet, bestE1RM, workoutVolume,
+  setLoad, loadLabel, loadLabelShort, topSet, bestE1RM, workoutVolume, sessionKcal,
 } from '../src/lib/calc.ts';
 import type { WorkoutSet } from '../src/db/types.ts';
 import { weekStart, localDateOf, recentWeeks, daysBetween, addDaysToLocalDate } from '../src/lib/dates.ts';
@@ -320,6 +320,12 @@ eq('one that does not gets none', phaseBadge(fatty, 'pre'), null);
 const middling = plate(980, 65, 116, 26, 7);
 eq('a badge is stricter than a clean penalty', phasePenalty(middling, 'pre'), 0);
 eq('so a merely acceptable plate is not badged', phaseBadge(middling, 'pre'), null);
+
+// burn estimate
+eq('a 10 km run at 80 kg is ~800 kcal', sessionKcal({ kind: 'run', durationSec: 3000, distanceKm: 10 }, 80), 800);
+eq('an hour of lifting at 80 kg is 320 active kcal', sessionKcal({ kind: 'workout', durationSec: 3600 }, 80), 320);
+eq('a 20 km/h hour on the bike uses the 19-22 band', sessionKcal({ kind: 'ride', durationSec: 3600, distanceKm: 20 }, 80), 560);
+eq('a zero-length session burns nothing', sessionKcal({ kind: 'ride', durationSec: 0, distanceKm: 5 }, 80), 0);
 
 console.log(failures === 0 ? '\nAll passed.' : `\n${failures} FAILED`);
 process.exit(failures === 0 ? 0 : 1);

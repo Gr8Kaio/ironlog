@@ -155,3 +155,33 @@ export function snapToIncrement(kg: number, incrementKg: number): number {
   if (incrementKg <= 0) return kg;
   return Math.round((kg / incrementKg)) * incrementKg;
 }
+
+// --------------------------------------------------------------- burn estimate
+
+/** Bike METs by average speed (Compendium of Physical Activities, 2011). */
+const RIDE_METS: [maxKmh: number, met: number][] = [
+  [16, 4], [19, 6.8], [22, 8], [25.5, 10], [30, 12], [Infinity, 15.8],
+];
+
+/** Moderate-to-vigorous weight training, rest between sets included. */
+const LIFTING_MET = 5;
+
+/**
+ * Active kcal of one session: what it cost on top of sitting still, so it does
+ * not double count the resting burn the daily target already assumes.
+ * Running goes by distance (~1 kcal per kg per km, close to pace-independent);
+ * rides and lifting by MET x hours. An estimate, never a measurement.
+ */
+export function sessionKcal(
+  s: { kind: 'workout' | 'run' | 'ride'; durationSec: number; distanceKm?: number },
+  weightKg: number,
+): number {
+  if (s.durationSec <= 0) return 0;
+  const hours = s.durationSec / 3600;
+  if (s.kind === 'run') return weightKg * (s.distanceKm ?? 0);
+  const met =
+    s.kind === 'ride'
+      ? RIDE_METS.find(([max]) => (s.distanceKm ?? 0) / hours < max)![1]
+      : LIFTING_MET;
+  return (met - 1) * weightKg * hours;
+}

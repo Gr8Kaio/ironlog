@@ -14,7 +14,7 @@ import type {
   Workout,
   WorkoutSet,
 } from './types';
-import { bestE1RM, epley1RM, isWorkingSet, setLoad, setVolume, topSet, workoutVolume } from '../lib/calc';
+import { bestE1RM, epley1RM, isWorkingSet, sessionKcal, setLoad, setVolume, topSet, workoutVolume } from '../lib/calc';
 import type { AssumptionInputs } from '../lib/nutrition';
 import { addDaysToLocalDate, localDateOf, monthKey, recentWeeks, todayLocalDate, weekStart } from '../lib/dates';
 import type { TrainingSession } from '../lib/trainingFuel';
@@ -616,4 +616,35 @@ export async function getTrainingSessions(
 export async function getWaterForDate(localDate: string): Promise<WaterLog[]> {
   const rows = await db.waterLogs.where('localDate').equals(localDate).toArray();
   return rows.sort((a, b) => a.loggedAt - b.loggedAt);
+}
+
+export interface DayBurn {
+  kcal: number;
+  sessions: number;
+  /** False when no weigh-in exists and the estimate fell back to 75 kg. */
+  weighed: boolean;
+}
+
+/** Estimated active kcal of the day's gym and cardio sessions. See `sessionKcal`. */
+export async function getDayBurn(localDate: string, now = Date.now()): Promise<DayBurn> {
+  const [workouts, runs, weight] = await Promise.all([
+    db.workouts.where('localDate').equals(localDate).toArray(),
+    db.runs.where('localDate').equals(localDate).toArray(),
+    getLatestBodyWeightKg(),
+  ]);
+  const kg = weight ?? 75;
+  const kcal =
+    workouts.reduce((sum, w) => {
+      // A session left open past three hours was forgotten, not trained.
+      const end = w.finishedAt ?? (w.status === 'in_progress' ? now : w.startedAt);
+      const sec = Math.min(3 * 3600, Math.max(0, (end - w.startedAt) / 1000));
+      return sum + sessionKcal({ kind: 'workout', durationSec: sec }, kg);
+    }, 0) +
+    runs.reduce(
+      (sum, r) =>
+        sum +
+        sessionKcal({ kind: r.sport === 'ride' ? 'ride' : 'run', durationSec: r.durationSec, distanceKm: r.distanceKm }, kg),
+      0,
+    );
+  return { kcal, sessions: workouts.length + runs.length, weighed: weight != null };
 }
